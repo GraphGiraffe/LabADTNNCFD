@@ -200,7 +200,7 @@ def experiment(p, run_clear_ml=False, log_dir=None):
                       scheduler=scheduler,
                       metrics=metrics)
     
-    best_score = 0
+    best_score = torch.inf
     with tqdm(total=p.train.epochs, desc="Epochs", unit="epoch") as pbar:
         for epoch in range(0, p.train.epochs):
             writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)
@@ -216,7 +216,7 @@ def experiment(p, run_clear_ml=False, log_dir=None):
                 # print(f"{' '.join(k.split('_')).title()}: {v:.2f}")
 
             # do something (save model, change lr, etc.)
-            if best_score < valid_metrics[p.train.score_metric]:
+            if best_score > valid_metrics[p.train.score_metric]:
                 best_epoch = epoch
                 best_score = valid_metrics[p.train.score_metric]
                 torch.save(model, log_dir / 'best_model.pth')

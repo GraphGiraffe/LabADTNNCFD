@@ -14,7 +14,6 @@ if __name__ == '__main__':
     
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_modes = ['added_fc']  # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
     run_clear_ml = True
     out_dir = Path('out')
     
@@ -37,7 +36,7 @@ if __name__ == '__main__':
     # Model config
     model_config = dict(
         name=None,
-        modes=model_modes,
+        modes=['added_fc'],  # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
         add_fc_blocks_every_N=1,
         BCinX_channels=2,
         in_channels=3,
@@ -66,7 +65,7 @@ if __name__ == '__main__':
     
     # Train config
     train_config = dict(
-        epochs=1000,
+        epochs=500,
         patience=-1,
         score_metric='mse',
     )
@@ -88,8 +87,11 @@ if __name__ == '__main__':
 
     models = ['UNetExFC']
     for model_name in models:
-        params['model']['name'] = model_name
+        for add_fc_blocks_every_N in [1, 0, 2]:
+            for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
+                params['model']['name'] = model_name
+                params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
 
-        log_dir = out_dir / f"{params['model']['name']}" / f"{get_str_timestamp()}"
-        experiment(run_clear_ml=run_clear_ml, p=params, log_dir=log_dir)
-        torch.cuda.empty_cache()
+                log_dir = out_dir / f"{params['model']['name']}" / f"{get_str_timestamp()}"
+                experiment(run_clear_ml=run_clear_ml, p=params, log_dir=log_dir)
+                torch.cuda.empty_cache()
