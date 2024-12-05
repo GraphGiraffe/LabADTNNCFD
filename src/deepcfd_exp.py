@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PosixPath
 import importlib
 import copy
 import json
@@ -125,8 +125,12 @@ def experiment(p_in, run_clear_ml=False, log_dir=None):
         log_dir = Path('tmp')
     log_dir.mkdir(parents=True, exist_ok=True)
     
+    p_dump = copy.copy(p)
+    for k, v in p_dump.items():
+        for kk, vv in v.items():
+            if isinstance(vv, PosixPath):
+                p_dump[k][kk] = str(vv)
     with open(log_dir / 'params.json', 'w') as f:
-        p_dump = copy.copy(p)
         json.dump(p_dump, f, indent=4)
         
     # with open(log_dir / 'params.json', 'r') as f:

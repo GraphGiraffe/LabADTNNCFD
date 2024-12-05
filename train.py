@@ -5,21 +5,26 @@ import torch
 from src.deepcfd_exp import experiment
 from src.deepcfd_utils import get_str_timestamp
 
-# TORCH_HUB_DIR = '/storage0/pia/python/hub/'
+CASCADE = True
 
-# torch.hub.set_dir(TORCH_HUB_DIR)
+root_dir = '.'
+
+if CASCADE:
+    TORCH_HUB_DIR = '/storage0/pia/python/hub/'
+    torch.hub.set_dir(TORCH_HUB_DIR)
+    root_dir = Path('/storage0/pia/python/deepcfd/')
 
 if __name__ == '__main__':
-    test = False
+    test = True
 
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    run_clear_ml = True
+    run_clear_ml = False
     out_dir = Path('out')
 
     # Dataset config
     dataset_config = dict(
-        datasets_dir='datasets',
+        datasets_dir= root_dir / 'datasets',
         dataset_name='dataset_with_T_rand_BC',
         obj_types=['spline'],  # ['pol']  # ['pol', 'spline'],
         total_samples=1000,
@@ -29,7 +34,7 @@ if __name__ == '__main__':
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=8,
+        batch_size=64,
         num_workers=1
     )
 
@@ -60,13 +65,18 @@ if __name__ == '__main__':
     )
 
     # Optimizer config
+    epochs = 500
+    gamma = pow(1e-2, 1 / (epochs)) if epochs != 0 else 0
     scheduler_config = dict(
-        name=None
+        name='StepLR',
+        step_size=1,
+        gamma=gamma,
+        last_epoch=-1
     )
 
     # Train config
     train_config = dict(
-        epochs=300,
+        epochs=epochs,
         patience=-1,
         score_metric='mse',
     )
@@ -88,7 +98,7 @@ if __name__ == '__main__':
 
     models = ['UNetExFC']
     for model_name in models:
-        for add_fc_blocks_every_N in [3, 2, 1, 0]:
+        for add_fc_blocks_every_N in [1, 0]:
             for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
                 ts = get_str_timestamp()
                 params['model']['name'] = model_name
