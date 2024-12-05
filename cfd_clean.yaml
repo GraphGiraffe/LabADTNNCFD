@@ -1,0 +1,17 @@
+name: base
+channels:
+  - defaults
+dependencies:
+  - python
+  - conda
+  - setuptools
+  - pip
+  - wheel
+  - conda-content-trust
+  - conda-libmamba-solver
+  - pytorch
+  - conda-build
+  - jupyterlab
+  - ipywidgets
+  - tqdm
+prefix: /home/ivan/miniconda3
