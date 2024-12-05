@@ -114,10 +114,12 @@ def gen_loss_func(channels_weights):
 def params_to_device(model, device):
     for vv in model.fc_blocks_decoder:
         for v in vv:
-            v = v.to(device)
+            if v is not None:
+                v = v.to(device)
     model.device = device
 
-def experiment(p, run_clear_ml=False, log_dir=None):
+def experiment(p_in, run_clear_ml=False, log_dir=None):
+    p = copy.copy(p_in)
     
     if log_dir is None:
         log_dir = Path('tmp')
@@ -145,7 +147,8 @@ def experiment(p, run_clear_ml=False, log_dir=None):
     if 'added_fc' in p.model.modes:
         p.model.add_fc_blocks = []
         for idx in range(len(p.model.filters)):
-            p.model.add_fc_blocks.append(idx % p.model.add_fc_blocks_every_N == 0)
+            ans = p.model.add_fc_blocks_every_N > 0 and idx % p.model.add_fc_blocks_every_N == 0
+            p.model.add_fc_blocks.append(ans)
     
     if 'bc_in_x' in p.model.modes:
         p.model.in_channels += p.model.BCinX_channels

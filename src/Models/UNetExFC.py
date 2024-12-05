@@ -97,7 +97,8 @@ class UNetExFC(nn.Module):
             self.fc_blocks_decoder.append(fc_block_by_out_channel)
 
         additional_fc_channels = [int(v)*fc_out_channels for v in add_fc_blocks]
-
+        additional_fc_channels.reverse()
+        
         for i in range(self.out_channels):
             decoders.append(create_decoder(1, filters, additional_fc_channels, kernel_size, weight_norm, batch_norm,
                                            activation, layers)

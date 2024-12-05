@@ -11,12 +11,12 @@ from src.deepcfd_utils import get_str_timestamp
 
 if __name__ == '__main__':
     test = False
-    
+
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
     run_clear_ml = True
     out_dir = Path('out')
-    
+
     # Dataset config
     dataset_config = dict(
         datasets_dir='datasets',
@@ -26,7 +26,7 @@ if __name__ == '__main__':
         train_ratio=0.6,
         val_ratio=0.2
     )
-        
+
     # Dataloader config
     dataloader_config = dict(
         batch_size=8,
@@ -36,7 +36,8 @@ if __name__ == '__main__':
     # Model config
     model_config = dict(
         name=None,
-        modes=['added_fc'],  # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
+        # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
+        modes=['added_fc'],
         add_fc_blocks_every_N=1,
         BCinX_channels=2,
         in_channels=3,
@@ -62,10 +63,10 @@ if __name__ == '__main__':
     scheduler_config = dict(
         name=None
     )
-    
+
     # Train config
     train_config = dict(
-        epochs=500,
+        epochs=300,
         patience=-1,
         score_metric='mse',
     )
@@ -78,7 +79,7 @@ if __name__ == '__main__':
         scheduler=scheduler_config,
         train=train_config
     )
-    
+
     if test:
         run_clear_ml = False
         dataset_config['total_samples'] = 10
@@ -87,11 +88,12 @@ if __name__ == '__main__':
 
     models = ['UNetExFC']
     for model_name in models:
-        for add_fc_blocks_every_N in [1, 0, 2]:
+        for add_fc_blocks_every_N in [3, 2, 1, 0]:
             for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
+                ts = get_str_timestamp()
                 params['model']['name'] = model_name
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
-
-                log_dir = out_dir / f"{params['model']['name']}" / f"{get_str_timestamp()}"
-                experiment(run_clear_ml=run_clear_ml, p=params, log_dir=log_dir)
+                params['dataset']['obj_types'] = obj_types
+                log_dir = out_dir / f"{params['model']['name']}" / f"{ts}"
+                experiment(params, run_clear_ml=run_clear_ml, log_dir=log_dir)
                 torch.cuda.empty_cache()
