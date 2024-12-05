@@ -1,17 +1,12 @@
-name: base
+name: cfd
 channels:
   - defaults
 dependencies:
-  - python
-  - conda
-  - setuptools
-  - pip
-  - wheel
-  - conda-content-trust
-  - conda-libmamba-solver
+  - matplotlib
+  - numpy
+  - pandas
   - pytorch
-  - conda-build
-  - jupyterlab
-  - ipywidgets
+  - pytorch-cuda=12.1
   - tqdm
-prefix: /home/ivan/miniconda3
+  - tensorboard
+prefix: /home/ivan/miniconda3/envs/cfd
