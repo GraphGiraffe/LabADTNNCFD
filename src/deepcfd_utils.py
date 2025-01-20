@@ -43,7 +43,9 @@ def prepare_datasets(params, model_modes=[]):
     input_dir = Path(params.datasets_dir) / params.dataset_name
     
     sample_fps_list = get_fps(params.obj_types, input_dir)
-    samples_num = min(params.total_samples, len(sample_fps_list))
+    samples_num = len(sample_fps_list)
+    if params.total_samples is not None:
+        samples_num = min(params.total_samples, samples_num)
     train_idx_start = 0
     train_idx_stop = train_idx_start + int(samples_num * params.train_ratio)
     val_idx_start = train_idx_stop

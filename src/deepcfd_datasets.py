@@ -1,11 +1,12 @@
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset as BaseDataset
 
 
 MAX_Y = 1280
-
+MAX_WORKERS = 8
 
 def read_csv_to_numpy(fp):
     df = pd.read_csv(fp, low_memory=False, header=None, dtype=np.float32)
@@ -13,6 +14,14 @@ def read_csv_to_numpy(fp):
     return df.to_numpy().astype(np.float32)
 
 
+def process(args):
+    i_fp, ib_fp, o_fp = args
+    in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
+    in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp])[0]
+    out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
+    
+    return in_np, in_BCs_np, out_np
+        
 class DatasetCFD(BaseDataset):
     def __init__(
             self,
@@ -36,20 +45,25 @@ class DatasetCFD(BaseDataset):
         self.in_list = list()
         self.in_bcs_list = list()
         self.out_list = list()
-        for i_fp, ib_fp, o_fp in tqdm(self.samples_fps):
+        
+        res = process_map(process, self.samples_fps, max_workers=MAX_WORKERS, chunksize=1)
+        self.in_list = np.stack([r[0] for r in res])
+        self.in_bcs_list = np.stack([r[1] for r in res])
+        self.out_list = np.stack([r[2] for r in res])
 
-            in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
-            in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0]
-                                 for fp in ib_fp])
-            out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
+        # for i_fp, ib_fp, o_fp in tqdm(self.samples_fps):
 
-            self.in_list.append(in_np)
-            self.in_bcs_list.append(in_BCs_np[0])
-            self.out_list.append(out_np)
+        #     in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
+        #     in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp])[0]
+        #     out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
 
-        self.in_list = np.stack(self.in_list)
-        self.in_bcs_list = np.stack(self.in_bcs_list)
-        self.out_list = np.stack(self.out_list)
+        #     self.in_list.append(in_np)
+        #     self.in_bcs_list.append(in_BCs_np)
+        #     self.out_list.append(out_np)
+
+        # self.in_list = np.stack(self.in_list)
+        # self.in_bcs_list = np.stack(self.in_bcs_list)
+        # self.out_list = np.stack(self.out_list)
 
     def _calc_norm(self):
         in_max = self.in_list.max(axis=(0, 2, 3))
