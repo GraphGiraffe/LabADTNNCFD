@@ -15,37 +15,44 @@ def get_str_timestamp(timestamp=None):
     return str_date_time
 
 
-def get_fps(idx_start, idx_stop, obj_types, input_dir):
-    in_fps = list()
-    in_bcs_fps = list()
-    out_fps = list()
-    
-    for idx in range(idx_start, idx_stop):
-        for obj_type in obj_types:
-            in_fps.append(input_dir / 'np' / f'{idx:06d}_{obj_type}_In.npy')
-            in_bcs_fps.append(input_dir / 'np' / f'{idx:06d}_{obj_type}_In_BCs.npy')
-            out_fps.append(input_dir / 'np' / f'{idx:06d}_{obj_type}_Out.npy')
+def get_fps(obj_types, input_dir, csv_suffix='.csv.gz'):
+    label_fp_list = list(input_dir.glob(f'*_Label{csv_suffix}'))
+    label_fp_list.sort()
 
-    return in_fps, in_bcs_fps, out_fps
+    sample_fps_list = list()
+    for label_fp in label_fp_list:
+        split = label_fp.name.split('_')
+        idx = split[0]
+        
+        for obj_type in obj_types:
+            in_fps = [input_dir / f'{idx}_{obj_type}_{f}{csv_suffix}' for f in ['Label', 'SDF1', 'SDF2']]
+            in_bcs_fps = [input_dir / f'{idx}_{obj_type}_{f}{csv_suffix}' for f in ['BCs']]
+            out_fps = [input_dir / f'{idx}_{obj_type}_{f}{csv_suffix}' for f in ['UVel', 'VVel', 'Pres', 'Temp']]
+            if all([v.exists() for v in in_fps + in_bcs_fps + out_fps]):
+                sample_fps_list.append([in_fps, in_bcs_fps, out_fps])
+    
+    return sample_fps_list
 
 
 def prepare_datasets(params, model_modes=[]):
-    test_ratio = 1 - params.train_ratio - params.val_ratio
-    train_idx_start = 0
-    train_idx_stop = train_idx_start + int(params.total_samples * params.train_ratio)
-    val_idx_start = train_idx_stop
-    val_idx_stop = val_idx_start + int(params.total_samples * params.val_ratio)
-    test_idx_start = val_idx_stop
-    test_idx_stop = test_idx_start + int(params.total_samples * test_ratio)
-
     if 'bc_in_x' in model_modes:
         dataset_cls = DatasetCFD_BCinX
     else:
         dataset_cls = DatasetCFD
 
     input_dir = Path(params.datasets_dir) / params.dataset_name
-    train_dataset = dataset_cls(*get_fps(train_idx_start, train_idx_stop, params.obj_types, input_dir), norm_data=None)
-    val_dataset = dataset_cls(*get_fps(val_idx_start, val_idx_stop, params.obj_types, input_dir), norm_data=train_dataset.norm_data)  # transfer normalization data
-    test_dataset = dataset_cls(*get_fps(test_idx_start, test_idx_stop, params.obj_types, input_dir), norm_data=train_dataset.norm_data)  # transfer normalization data
+    
+    sample_fps_list = get_fps(params.obj_types, input_dir)
+    samples_num = min(params.total_samples, len(sample_fps_list))
+    train_idx_start = 0
+    train_idx_stop = train_idx_start + int(samples_num * params.train_ratio)
+    val_idx_start = train_idx_stop
+    val_idx_stop = val_idx_start + int(samples_num * params.val_ratio)
+    test_idx_start = val_idx_stop
+    test_idx_stop = samples_num
+    
+    train_dataset = dataset_cls(sample_fps_list[train_idx_start:train_idx_stop], norm_data=None)
+    val_dataset = dataset_cls(sample_fps_list[val_idx_start:val_idx_stop], norm_data=train_dataset.norm_data)  # transfer normalization data
+    test_dataset = dataset_cls(sample_fps_list[test_idx_start:test_idx_stop], norm_data=train_dataset.norm_data)  # transfer normalization data
 
     return train_dataset, val_dataset, test_dataset

@@ -5,18 +5,20 @@ import torch
 from src.deepcfd_exp import experiment
 from src.deepcfd_utils import get_str_timestamp
 
-CASCADE = True
+CASCADE = False
 
 root_dir = '.'
 
 if CASCADE:
     TORCH_HUB_DIR = '/storage0/pia/python/hub/'
     torch.hub.set_dir(TORCH_HUB_DIR)
-    root_dir = Path('/storage0/pia/python/deepcfd/')
+    root_dir = '/storage0/pia/python/deepcfd/'
 
 if __name__ == '__main__':
     test = True
 
+    root_dir = Path(root_dir)
+    
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
     run_clear_ml = False
@@ -25,8 +27,8 @@ if __name__ == '__main__':
     # Dataset config
     dataset_config = dict(
         datasets_dir= root_dir / 'datasets',
-        dataset_name='dataset_with_T_rand_BC',
-        obj_types=['spline'],  # ['pol']  # ['pol', 'spline'],
+        dataset_name='dataset_rndshap_Randombc_step_1to256_clean',
+        obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
         total_samples=1000,
         train_ratio=0.6,
         val_ratio=0.2
@@ -99,7 +101,8 @@ if __name__ == '__main__':
     models = ['UNetExFC']
     for model_name in models:
         for add_fc_blocks_every_N in [1, 0]:
-            for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
+            # for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
+            for obj_types in [['pol']]:
                 ts = get_str_timestamp()
                 params['model']['name'] = model_name
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
