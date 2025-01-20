@@ -16,9 +16,9 @@ def read_csv_to_numpy(fp):
 
 def process(args):
     i_fp, ib_fp, o_fp = args
-    in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
-    in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp])[0]
-    out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
+    in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp]).astype(np.float32)
+    in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp]).astype(np.float32)[0]
+    out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp]).astype(np.float32)
     
     return in_np, in_BCs_np, out_np
         
@@ -47,13 +47,13 @@ class DatasetCFD(BaseDataset):
         self.out_list = list()
         
         res = process_map(process, self.samples_fps, max_workers=MAX_WORKERS, chunksize=1)
-        self.in_list = np.stack([r[0] for r in res])
-        self.in_bcs_list = np.stack([r[1] for r in res])
-        self.out_list = np.stack([r[2] for r in res])
-
+        self.in_list = np.stack([r[0] for r in res]).astype(np.float32)
+        self.in_bcs_list = np.stack([r[1] for r in res]).astype(np.float32)
+        self.out_list = np.stack([r[2] for r in res]).astype(np.float32)
+        del res
         # for i_fp, ib_fp, o_fp in tqdm(self.samples_fps):
 
-        #     in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
+        #     in_np = np.stack([rea d_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
         #     in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp])[0]
         #     out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
 

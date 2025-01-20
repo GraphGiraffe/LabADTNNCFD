@@ -55,8 +55,9 @@ class Trainer():
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
+        if train:
+            if self.scheduler is not None:
+                self.scheduler.step()
 
         s = loader.dataset.out_list.shape
         values_number = s[0] * s[2] * s[3]  # samples_num * num_x * num_y

@@ -66,7 +66,7 @@ if __name__ == '__main__':
         weight_decay=0.005
     )
 
-    # Optimizer config
+    # Scheduler config
     epochs = 500
     gamma = pow(1e-2, 1 / (epochs)) if epochs != 0 else 0
     scheduler_config = dict(
