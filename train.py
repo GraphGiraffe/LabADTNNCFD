@@ -15,7 +15,7 @@ if CASCADE:
     root_dir = '/storage0/pia/python/deepcfd/'
 
 if __name__ == '__main__':
-    test = True
+    test = False
 
     root_dir = Path(root_dir)
     
@@ -45,17 +45,18 @@ if __name__ == '__main__':
         name=None,
         # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
         modes=['added_fc'],
-        add_fc_blocks_every_N=1,
+        add_fc_blocks_every_N=None,
         BCinX_channels=2,
         in_channels=3,
         out_channels=4,
-        filters=[8, 16, 32, 64, 128, 64, 32, 16],
+        filters=[16, 32, 64, 128, 256, 256, 128, 64, 32],
+        layers=2,
         kernel_size=3,
         batch_norm=False,
         weight_norm=False,
         fc_in_channels=6,
-        fc_out_channels=32,
-        fc_filters=[8, 16, 32, 64, 128, 64, 32],
+        fc_out_channels=8,
+        fc_filters=[8, 16, 32, 64, 32, 16],
         device=device,
     )
 
@@ -94,13 +95,13 @@ if __name__ == '__main__':
 
     if test:
         run_clear_ml = False
-        dataset_config['total_samples'] = 10
+        dataset_config['total_samples'] = 32
         train_config['epochs'] = 5
         out_dir = Path('out_test')
 
     models = ['UNetExFC']
     for model_name in models:
-        for add_fc_blocks_every_N in [1, 0]:
+        for add_fc_blocks_every_N in [3]:
             # for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
             for obj_types in [['pol']]:
                 ts = get_str_timestamp()

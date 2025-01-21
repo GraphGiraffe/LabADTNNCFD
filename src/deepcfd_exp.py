@@ -8,7 +8,7 @@ from collections import defaultdict
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
+from torchinfo import summary
 from tqdm import tqdm
 # import pandas as pd
 # import cv2
@@ -142,13 +142,12 @@ def experiment(p_in, run_clear_ml=False, log_dir=None):
     p = SimpleNamespace(**p)
     pprint(p_dump)
     
-    train_dataset, val_dataset, test_dataset = prepare_datasets(p.dataset, model_modes=p.model.modes)
-    train_loader = DataLoader(train_dataset, shuffle=True, **vars(p.dataloader))
-    val_loader = DataLoader(val_dataset, shuffle=False, **vars(p.dataloader))
-    test_loader = DataLoader(test_dataset, shuffle=False, **vars(p.dataloader))
-    channels_weights = torch.FloatTensor(train_dataset.out_mean_norm)
+    train_dataset_fn, val_dataset_fn, test_dataset_fn = prepare_datasets(p.dataset, model_modes=p.model.modes)
+    train_loader = DataLoader(train_dataset_fn(None), shuffle=True, **vars(p.dataloader))
+    val_loader = DataLoader(val_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
+    # test_loader = DataLoader(test_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
+    channels_weights = torch.FloatTensor(train_loader.dataset.out_mean_norm)
     
-
     if 'added_fc' in p.model.modes:
         p.model.add_fc_blocks = []
         for idx in range(len(p.model.filters)):
@@ -157,7 +156,7 @@ def experiment(p_in, run_clear_ml=False, log_dir=None):
     
     if 'bc_in_x' in p.model.modes:
         p.model.in_channels += p.model.BCinX_channels
-        p.model.add_fc_blocks = [False] * len(p.model.filters)
+        # p.model.add_fc_blocks = [False] * len(p.model.filters)
     
     model_fn = getattr(importlib.import_module(f'src.Models.{p.model.name}'), p.model.name)
     del p.model.name
@@ -168,6 +167,7 @@ def experiment(p_in, run_clear_ml=False, log_dir=None):
     model = model_fn(**vars(p.model))
     model = model.to(p.model.device)
     params_to_device(model, p.model.device)
+    summary(model)
     
     optimizer_fn = getattr(importlib.import_module('torch.optim'), p.optimizer.name)
     del p.optimizer.name

@@ -51,6 +51,7 @@ class DatasetCFD(BaseDataset):
         self.in_bcs_list = np.stack([r[1] for r in res]).astype(np.float32)
         self.out_list = np.stack([r[2] for r in res]).astype(np.float32)
         del res
+
         # for i_fp, ib_fp, o_fp in tqdm(self.samples_fps):
 
         #     in_np = np.stack([rea d_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])

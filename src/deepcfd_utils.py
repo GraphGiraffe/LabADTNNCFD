@@ -53,8 +53,8 @@ def prepare_datasets(params, model_modes=[]):
     test_idx_start = val_idx_stop
     test_idx_stop = samples_num
     
-    train_dataset = dataset_cls(sample_fps_list[train_idx_start:train_idx_stop], norm_data=None)
-    val_dataset = dataset_cls(sample_fps_list[val_idx_start:val_idx_stop], norm_data=train_dataset.norm_data)  # transfer normalization data
-    test_dataset = dataset_cls(sample_fps_list[test_idx_start:test_idx_stop], norm_data=train_dataset.norm_data)  # transfer normalization data
+    train_dataset_fn = lambda norm_data: dataset_cls(sample_fps_list[train_idx_start:train_idx_stop], norm_data=norm_data)
+    val_dataset_fn = lambda norm_data: dataset_cls(sample_fps_list[val_idx_start:val_idx_stop], norm_data=norm_data)  # transfer normalization data
+    test_dataset_fn = lambda norm_data: dataset_cls(sample_fps_list[test_idx_start:test_idx_stop], norm_data=norm_data)  # transfer normalization data
 
-    return train_dataset, val_dataset, test_dataset
+    return train_dataset_fn, val_dataset_fn, test_dataset_fn

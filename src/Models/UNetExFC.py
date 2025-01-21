@@ -76,13 +76,13 @@ class UNetExFC(nn.Module):
         decoders = []
 
         self.add_fc_blocks = add_fc_blocks
-        self.fc_blocks_decoder = []
+        self.fc_blocks_decoder = nn.ModuleList()
         self.fc_in_channels = fc_in_channels
         self.fc_out_channels = fc_out_channels
         self.fc_filters = fc_filters
 
         for add_fc in add_fc_blocks:
-            fc_block_by_out_channel = []
+            fc_block_by_out_channel = nn.ModuleList()
             for _ in range(self.out_channels):
                 if add_fc:
                     fc_layer = []
