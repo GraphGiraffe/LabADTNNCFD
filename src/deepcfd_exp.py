@@ -229,8 +229,8 @@ def experiment(p_in, run_clear_ml=False, log_dir=None):
                 best_score = valid_metrics[p.train.score_metric]
                 torch.save(model, log_dir / 'best_model.pth')
 
-            if scheduler is not None:
-                scheduler.step()
+            # if scheduler is not None:
+            #     scheduler.step()
                 
             pbar.set_postfix({
                     'best': f'{best_epoch+1:04d}',

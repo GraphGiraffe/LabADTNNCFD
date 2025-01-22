@@ -5,28 +5,31 @@ import torch
 from src.deepcfd_exp import experiment
 from src.deepcfd_utils import get_str_timestamp
 
+
 CASCADE = False
+run_clear_ml = True
 
-root_dir = '.'
-
-if CASCADE:
-    TORCH_HUB_DIR = '/storage0/pia/python/hub/'
-    torch.hub.set_dir(TORCH_HUB_DIR)
-    root_dir = '/storage0/pia/python/deepcfd/'
 
 if __name__ == '__main__':
     test = False
 
+    if CASCADE:
+        TORCH_HUB_DIR = '/storage0/pia/python/hub/'
+        torch.hub.set_dir(TORCH_HUB_DIR)
+        root_dir = '/storage0/pia/python/deepcfd/'
+        run_clear_ml = False
+    else:
+        root_dir = '.'
+
     root_dir = Path(root_dir)
-    
+
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    run_clear_ml = False
     out_dir = Path('out')
 
     # Dataset config
     dataset_config = dict(
-        datasets_dir= root_dir / 'datasets',
+        datasets_dir=root_dir / 'datasets',
         dataset_name='dataset_rndshap_Randombc_step_1to256_clean',
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
         total_samples=1000,
