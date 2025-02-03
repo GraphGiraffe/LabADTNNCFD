@@ -261,6 +261,80 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
         task.close()
 
 
+def create_result_image(flow, pred_flow):
+    error_flow = np.abs(pred_flow - flow)
+
+    # Настройка фигуры и GridSpec
+    fontsize = 30
+    fontsize_cb = 20
+    figsize = (40, 25)
+    nrows = flow.shape[0]
+    ncols = 5
+    width_ratios = [1, 1, 0.05, 1, 0.05]  # gt, pred, cax, error, cax_err
+    height_ratios = [1] * nrows
+    cmap = 'viridis'
+
+    # Заголовки столбцов и названия параметров
+    col_titles = ['Ground Truth', 'Predicted', 'Abs Error']
+    param_names = ['u', 'v', 'p', 'T']
+
+    fig = plt.figure(figsize=figsize)
+    gs = GridSpec(nrows=nrows, ncols=ncols,
+                    figure=fig,
+                    width_ratios=width_ratios,
+                    height_ratios=height_ratios,
+                    hspace=0.1,
+                    wspace=0.15)
+
+    for row_idx in range(nrows):
+        # Данные для текущего параметра
+        gt_data = flow[row_idx]
+        pred_data = pred_flow[row_idx]
+        err_data = error_flow[row_idx]
+
+        # Определение общего масштаба для Flow
+        combined = np.concatenate([gt_data, pred_data])
+        vmin, vmax = np.min(combined), np.max(combined)
+        
+        # Определение общего масштаба Error
+        err_vmin, err_vmax = np.min(err_data), np.max(err_data)
+
+        # Создание осей для текущей строки
+        ax_gt = fig.add_subplot(gs[row_idx, 0])
+        ax_pred = fig.add_subplot(gs[row_idx, 1])
+        cax = fig.add_subplot(gs[row_idx, 2])  # Ось для цветбара Flow
+        ax_err = fig.add_subplot(gs[row_idx, 3])
+        cax_err = fig.add_subplot(gs[row_idx, 4])  # Ось для цветбара Error
+
+        # Визуализация данных
+        im = ax_gt.imshow(gt_data, cmap=cmap, vmin=vmin, vmax=vmax)
+        ax_pred.imshow(pred_data, cmap=cmap, vmin=vmin, vmax=vmax)
+        im_err = ax_err.imshow(err_data, cmap=cmap, vmin=err_vmin, vmax=err_vmax)
+
+        # Удаление осей
+        for ax in [ax_gt, ax_pred, ax_err]:
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+        # Добавление цветбара Flow
+        plt.colorbar(im, cax=cax)
+        cax.tick_params(labelsize=fontsize_cb)
+
+        # Добавление цветбара Error
+        plt.colorbar(im_err, cax=cax_err)
+        cax_err.tick_params(labelsize=fontsize_cb)
+
+        # Подписи слева (параметры)
+        ax_gt.set_ylabel(
+            param_names[row_idx], rotation=0, fontsize=fontsize, labelpad=20, va='center')
+
+        # Заголовки столбцов (только для первой строки)
+        if row_idx == 0:
+            ax_gt.set_title(col_titles[0], fontsize=fontsize)
+            ax_pred.set_title(col_titles[1], fontsize=fontsize)
+            ax_err.set_title(col_titles[2], fontsize=fontsize)
+
+
 def test_exp(exp_dir_path, out_dir_path,
              total_samples=None,
              datasets_dir=None,
@@ -287,7 +361,12 @@ def test_exp(exp_dir_path, out_dir_path,
 
     train_loader, val_loader, test_dataset_fn = prepare_datasets(
         p.dataset, model_modes=p.model.modes)
-    norm_data = load_norm_data(exp_dir_path / 'norm_data.json')
+
+    norm_data_fp = exp_dir_path / 'norm_data.json'
+    if not norm_data_fp.exists():
+        norm_data_fp = Path(p.datasets_dir) / p.dataset_name / 'norm_data.json'
+    norm_data = load_norm_data(norm_data_fp)
+    
     # train_loader = DataLoader(train_dataset_fn(norm_data), shuffle=True, **vars(p.dataloader))
     # val_loader = DataLoader(val_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
     test_loader = DataLoader(test_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
@@ -347,7 +426,7 @@ def test_exp(exp_dir_path, out_dir_path,
     out_images_dir = out_dir_path / 'images'
     out_images_dir.mkdir(exist_ok=True)
 
-    for batch_idx, batch in enumerate(test_loader):
+    for batch in tqdm(test_loader):
         x, x_fc, y = [v.to(model.device) for v in batch]
 
         pred = model(x, x_fc)
@@ -360,98 +439,15 @@ def test_exp(exp_dir_path, out_dir_path,
         x_fc = x_fc.detach().cpu().numpy()
         y = y.detach().cpu().numpy()
         pred = pred.detach().cpu().numpy()
+        
+        
         for sample_idx in range(x.shape[0]):
-            # label = x[sample_idx, 0, ...]
+            create_result_image(y[sample_idx, ...], pred[sample_idx, ...])
 
-            # fc = x_fc[sample_idx, 0, ...]
-
-            flow = y[sample_idx, ...]
-            pred_flow = pred[sample_idx, ...]
-            error_flow = np.abs(pred_flow - flow)
-
-            # label_list.append(label)
-            # flow_list.append(flow)
-            # pred_flow_list.append(pred_flow)
-            # error_flow_list.append(error_flow)
-
-            # flow = flow_list[sample_idx]        # (4, 512, 1280)
-            # pred_flow = pred_flow_list[sample_idx]  # (4, 512, 1280)
-            # error_flow = error_flow_list[sample_idx] # (4, 512, 1280)
-
-            # Настройка фигуры и GridSpec
-            fontsize = 30
-            fontsize_cb = 20
-            figsize = (40, 25)
-            nrows = flow.shape[0]
-            ncols = 5
-            width_ratios = [1, 1, 0.05, 1, 0.05]  # gt, pred, cax, error, cax_err
-            height_ratios = [1] * nrows
-            cmap = 'viridis'
-
-            # Заголовки столбцов и названия параметров
-            col_titles = ['Ground Truth', 'Predicted', 'Abs Error']
-            param_names = ['u', 'v', 'p', 'T']
-
-            fig = plt.figure(figsize=figsize)
-            gs = GridSpec(nrows=nrows, ncols=ncols,
-                          figure=fig,
-                          width_ratios=width_ratios,
-                          height_ratios=height_ratios,
-                          hspace=0.1,
-                          wspace=0.15)
-
-            for row_idx in range(nrows):
-                # Данные для текущего параметра
-                gt_data = flow[row_idx]
-                pred_data = pred_flow[row_idx]
-                err_data = error_flow[row_idx]
-
-                # Определение общего масштаба для Flow
-                combined = np.concatenate([gt_data, pred_data])
-                vmin, vmax = np.min(combined), np.max(combined)
-                
-                # Определение общего масштаба Error
-                err_vmin, err_vmax = np.min(err_data), np.max(err_data)
-
-                # Создание осей для текущей строки
-                ax_gt = fig.add_subplot(gs[row_idx, 0])
-                ax_pred = fig.add_subplot(gs[row_idx, 1])
-                cax = fig.add_subplot(gs[row_idx, 2])  # Ось для цветбара Flow
-                ax_err = fig.add_subplot(gs[row_idx, 3])
-                cax_err = fig.add_subplot(gs[row_idx, 4])  # Ось для цветбара Error
-
-                # Визуализация данных
-                im = ax_gt.imshow(gt_data, cmap=cmap, vmin=vmin, vmax=vmax)
-                ax_pred.imshow(pred_data, cmap=cmap, vmin=vmin, vmax=vmax)
-                im_err = ax_err.imshow(err_data, cmap=cmap, vmin=err_vmin, vmax=err_vmax)
-
-                # Удаление осей
-                for ax in [ax_gt, ax_pred, ax_err]:
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-
-                # Добавление цветбара Flow
-                plt.colorbar(im, cax=cax)
-                cax.tick_params(labelsize=fontsize_cb)
-
-                # Добавление цветбара Error
-                plt.colorbar(im_err, cax=cax_err)
-                cax_err.tick_params(labelsize=fontsize_cb)
-
-                # Подписи слева (параметры)
-                ax_gt.set_ylabel(
-                    param_names[row_idx], rotation=0, fontsize=fontsize, labelpad=20, va='center')
-
-                # Заголовки столбцов (только для первой строки)
-                if row_idx == 0:
-                    ax_gt.set_title(col_titles[0], fontsize=fontsize)
-                    ax_pred.set_title(col_titles[1], fontsize=fontsize)
-                    ax_err.set_title(col_titles[2], fontsize=fontsize)
-
-            plt.savefig(out_images_dir / f'{sample_counter:06d}.png',
-                        bbox_inches='tight', pad_inches=1)
-            sample_counter += 1
+            out_image_fp = out_images_dir / f'{sample_counter:06d}.png'
+            plt.savefig(out_image_fp, bbox_inches='tight', pad_inches=1)
             plt.close()
+            sample_counter += 1
 
     s = test_loader.dataset.out_list.shape
     values_number = s[0] * s[2] * s[3]  # samples_num * num_x * num_y

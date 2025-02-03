@@ -20,7 +20,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 exp_dir_path = 'out_CASCADE/out/UNetExFC/20250123_115005'
 out_dir_path = osp.join(exp_dir_path, 'results')
-total_samples = 10
+total_samples = None
 datasets_dir = './datasets'
 batch_size = 2
 
