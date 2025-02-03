@@ -34,7 +34,7 @@ def get_fps(obj_types, input_dir, csv_suffix='.csv.gz'):
     return sample_fps_list
 
 
-def prepare_datasets(params, model_modes=[]):
+def prepare_datasets(params, model_modes=[], skip_train=False, skip_val=False, skip_test=False):
     if 'bc_in_x' in model_modes:
         dataset_cls = DatasetCFD_BCinX
     else:

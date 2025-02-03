@@ -48,6 +48,8 @@ if __name__ == "__main__":
     project_name = "DeepCFD_FC"
     
     fp_list = [x for x in p if x.is_file()]
+    fp_list.sort()
+    # fp_list = fp_list[-4:]
     pprint.pprint(fp_list)
 
     def process(event_file):

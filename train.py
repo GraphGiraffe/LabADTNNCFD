@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 
-from src.deepcfd_exp import experiment
+from src.deepcfd_exp import exp
 from src.deepcfd_utils import get_str_timestamp
 
 
@@ -32,14 +32,14 @@ if __name__ == '__main__':
         datasets_dir=root_dir / 'datasets',
         dataset_name='dataset_rndshap_Randombc_step_1to256_clean',
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
-        total_samples=1000,
+        total_samples=600,
         train_ratio=0.6,
         val_ratio=0.2
     )
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=64,
+        batch_size=4,
         num_workers=1
     )
 
@@ -112,5 +112,5 @@ if __name__ == '__main__':
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
                 params['dataset']['obj_types'] = obj_types
                 log_dir = out_dir / f"{params['model']['name']}" / f"{ts}"
-                experiment(params, run_clear_ml=run_clear_ml, log_dir=log_dir)
+                exp(params, run_clear_ml=run_clear_ml, log_dir=log_dir)
                 torch.cuda.empty_cache()
