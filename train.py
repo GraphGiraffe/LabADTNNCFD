@@ -11,7 +11,7 @@ run_clear_ml = True
 
 
 if __name__ == '__main__':
-    test = False
+    debug_run = True
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage0/pia/python/hub/'
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         train=train_config
     )
 
-    if test:
+    if debug_run:
         run_clear_ml = False
         dataset_config['total_samples'] = 32
         train_config['epochs'] = 5
@@ -111,6 +111,6 @@ if __name__ == '__main__':
                 params['model']['name'] = model_name
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
                 params['dataset']['obj_types'] = obj_types
-                log_dir = out_dir / f"{params['model']['name']}" / f"{ts}"
-                exp(params, run_clear_ml=run_clear_ml, log_dir=log_dir)
+                exp_dir_path = out_dir / f"{params['model']['name']}" / f"{ts}"
+                exp(params, run_clear_ml=run_clear_ml, exp_dir_path=exp_dir_path)
                 torch.cuda.empty_cache()

@@ -24,7 +24,9 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 from src.deepcfd_utils import (
-    prepare_datasets
+    prepare_datasets,
+    dump_norm_data,
+    load_norm_data
 )
 torch.manual_seed(0)
 
@@ -126,19 +128,19 @@ def params_to_device(model, device):
     model.device = device
 
 
-def exp(p_in, run_clear_ml=False, log_dir=None):
+def exp(p_in, run_clear_ml=False, exp_dir_path=None):
     p = copy.copy(p_in)
 
-    if log_dir is None:
-        log_dir = Path('tmp')
-    log_dir.mkdir(parents=True, exist_ok=True)
+    if exp_dir_path is None:
+        exp_dir_path = Path('tmp')
+    exp_dir_path.mkdir(parents=True, exist_ok=True)
 
     p_dump = copy.copy(p)
     for k, v in p_dump.items():
         for kk, vv in v.items():
             if isinstance(vv, PosixPath):
                 p_dump[k][kk] = str(vv)
-    with open(log_dir / 'params.json', 'w') as f:
+    with open(exp_dir_path / 'params.json', 'w') as f:
         json.dump(p_dump, f, indent=4)
 
     # with open(log_dir / 'params.json', 'r') as f:
@@ -149,14 +151,13 @@ def exp(p_in, run_clear_ml=False, log_dir=None):
     p = SimpleNamespace(**p)
     pprint(p_dump)
 
-    train_dataset_fn, val_dataset_fn, test_dataset_fn = prepare_datasets(
-        p.dataset, model_modes=p.model.modes)
-    train_loader = DataLoader(train_dataset_fn(
-        None), shuffle=True, **vars(p.dataloader))
-    val_loader = DataLoader(val_dataset_fn(
-        train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
+    train_dataset_fn, val_dataset_fn, test_dataset_fn = prepare_datasets(p.dataset, model_modes=p.model.modes)
+    train_loader = DataLoader(train_dataset_fn(None), shuffle=True, **vars(p.dataloader))
+    val_loader = DataLoader(val_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
     # test_loader = DataLoader(test_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
     channels_weights = torch.FloatTensor(train_loader.dataset.out_mean_norm)
+
+    dump_norm_data(train_loader.dataset.norm_data, exp_dir_path / 'norm_data.json')
 
     if 'added_fc' in p.model.modes:
         p.model.add_fc_blocks = []
@@ -195,7 +196,7 @@ def exp(p_in, run_clear_ml=False, log_dir=None):
 
     if run_clear_ml:
         task = Task.init(project_name="DeepCFD_FC",
-                         task_name=str(log_dir),
+                         task_name=str(exp_dir_path),
                          output_uri=False)
 
         model_p_dump = p_dump.get('model')
@@ -204,7 +205,7 @@ def exp(p_in, run_clear_ml=False, log_dir=None):
         output_model.update_design(config_dict=model_p_dump)
     else:
         task = None
-    writer = SummaryWriter(log_dir=log_dir)
+    writer = SummaryWriter(log_dir=exp_dir_path)
 
     criterion = gen_loss_func(channels_weights=channels_weights)
 
@@ -240,7 +241,7 @@ def exp(p_in, run_clear_ml=False, log_dir=None):
             if best_score > valid_metrics[p.train.score_metric]:
                 best_epoch = epoch
                 best_score = valid_metrics[p.train.score_metric]
-                torch.save(model, log_dir / 'best_model.pth')
+                torch.save(model, exp_dir_path / 'best_model.pth')
 
             # if scheduler is not None:
             #     scheduler.step()
@@ -286,10 +287,10 @@ def test_exp(exp_dir_path, out_dir_path,
 
     train_loader, val_loader, test_dataset_fn = prepare_datasets(
         p.dataset, model_modes=p.model.modes)
-    # train_loader = DataLoader(train_dataset_fn(None), shuffle=True, **vars(p.dataloader))
-    # val_loader = DataLoader(val_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
-    test_loader = DataLoader(test_dataset_fn(
-        None), shuffle=False, **vars(p.dataloader))
+    norm_data = load_norm_data(exp_dir_path / 'norm_data.json')
+    # train_loader = DataLoader(train_dataset_fn(norm_data), shuffle=True, **vars(p.dataloader))
+    # val_loader = DataLoader(val_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
+    test_loader = DataLoader(test_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
     channels_weights = torch.FloatTensor(test_loader.dataset.out_mean_norm)
 
     if 'added_fc' in p.model.modes:
