@@ -6,17 +6,17 @@ from src.deepcfd_exp import exp
 from src.deepcfd_utils import get_str_timestamp
 
 
-CASCADE = False
+CASCADE = True
 run_clear_ml = True
 
 
 if __name__ == '__main__':
-    debug_run = True
+    debug_run = False
 
     if CASCADE:
-        TORCH_HUB_DIR = '/storage0/pia/python/hub/'
+        TORCH_HUB_DIR = '/storage2/pia/python/hub/'
         torch.hub.set_dir(TORCH_HUB_DIR)
-        root_dir = '/storage0/pia/python/deepcfd/'
+        root_dir = '/storage2/pia/python/deepcfd/'
         run_clear_ml = False
     else:
         root_dir = '.'
@@ -32,14 +32,14 @@ if __name__ == '__main__':
         datasets_dir=root_dir / 'datasets',
         dataset_name='dataset_rndshap_Randombc_step_1to256_clean',
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
-        total_samples=600,
+        total_samples=None,
         train_ratio=0.6,
         val_ratio=0.2
     )
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=4,
+        batch_size=16,
         num_workers=1
     )
 
@@ -53,26 +53,26 @@ if __name__ == '__main__':
         in_channels=3,
         out_channels=4,
         filters=[16, 32, 64, 128, 256, 256, 128, 64, 32],
-        layers=2,
+        layers=3,
         kernel_size=3,
         batch_norm=False,
         weight_norm=False,
         fc_in_channels=6,
         fc_out_channels=8,
-        fc_filters=[8, 16, 32, 64, 32, 16],
+        fc_filters=[16, 32, 16],
         device=device,
     )
 
     # Optimizer config
     optimizer_config = dict(
         name='AdamW',
-        lr=1e-4,
+        lr=1e-3,
         weight_decay=0.005
     )
 
     # Scheduler config
-    epochs = 500
-    gamma = pow(1e-2, 1 / (epochs)) if epochs != 0 else 0
+    epochs = 1000
+    gamma = pow(1e-3, 1 / (epochs)) if epochs != 0 else 0
     scheduler_config = dict(
         name='StepLR',
         step_size=1,
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     models = ['UNetExFC']
     for model_name in models:
-        for add_fc_blocks_every_N in [3]:
+        for add_fc_blocks_every_N in [1]:
             # for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
             for obj_types in [['pol']]:
                 ts = get_str_timestamp()
