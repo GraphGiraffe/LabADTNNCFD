@@ -1,4 +1,5 @@
 from pathlib import Path
+import copy
 
 import torch
 
@@ -87,7 +88,7 @@ if __name__ == '__main__':
         score_metric='mse',
     )
 
-    params = dict(
+    def_params = dict(
         dataset=dataset_config,
         dataloader=dataloader_config,
         model=model_config,
@@ -98,15 +99,27 @@ if __name__ == '__main__':
 
     if debug_run:
         run_clear_ml = False
-        dataset_config['total_samples'] = 32
+        dataset_config['total_samples'] = 6
+        dataloader_config['batch_size'] = 2
         train_config['epochs'] = 5
         out_dir = Path('out_test')
 
-    models = ['UNetExFC']
+    models = ['UNetExFC', 'EnhancedUNet', 'AttentionUNet', 'MultiHeadAttentionUNet']
+    add_fc_blocks_every_N_list = [1]
+    obj_types_list = [['pol'],
+                      #   ['spline']
+                      ]
     for model_name in models:
-        for add_fc_blocks_every_N in [1]:
-            # for obj_types in [['spline'], ['pol'], ['pol', 'spline']]:
-            for obj_types in [['pol']]:
+        for add_fc_blocks_every_N in add_fc_blocks_every_N_list:
+            for obj_types in obj_types_list:
+                params = copy.deepcopy(def_params)
+
+                if model_name in ['AttentionUNet', 'MultiHeadAttentionUNet']:
+                    params['model']['dilation'] = 2
+                    params['model']['enc_layers'] = params['model']['layers']
+                    params['model']['dec_layers'] = params['model']['layers']
+                    del params['model']['layers']
+
                 ts = get_str_timestamp()
                 params['model']['name'] = model_name
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
