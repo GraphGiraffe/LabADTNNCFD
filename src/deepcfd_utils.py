@@ -47,7 +47,15 @@ def prepare_datasets(params, model_modes=[], skip_train=False, skip_val=False, s
 
     input_dir = Path(params.datasets_dir) / params.dataset_name
 
-    sample_fps_list = get_fps(params.obj_types, input_dir)
+    child_dir_samples_num = vars(params).get('child_dir_samples_num', {'.': None})
+
+    sample_fps_list = []
+    for child_dir, max_samples in child_dir_samples_num.items():
+        child_input_dir = input_dir / child_dir
+        child_samples = get_fps(params.obj_types, child_input_dir)
+        child_samples_num = min(max_samples, len(child_samples))
+        sample_fps_list.extend(child_samples[:child_samples_num])
+
     samples_num = len(sample_fps_list)
     if params.total_samples is not None:
         samples_num = min(params.total_samples, samples_num)

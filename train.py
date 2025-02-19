@@ -31,7 +31,10 @@ if __name__ == '__main__':
     # Dataset config
     dataset_config = dict(
         datasets_dir=root_dir / 'datasets',
-        dataset_name='dataset_rndshap_Randombc_step_1to256_clean',
+        dataset_name='.',
+        child_dir_samples_num={'dataset_rndshap_Randombc_step_1to256_clean': 500,
+                             'dataset_rndshap_Randombc_move_body_step_1to256_clean': 1000,
+                             'dataset_rndshap_Randombc_second_body_step_1to256_clean': 500},
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
         total_samples=None,
         train_ratio=0.6,
@@ -99,7 +102,10 @@ if __name__ == '__main__':
 
     if debug_run:
         run_clear_ml = False
-        dataset_config['total_samples'] = 6
+        dataset_config['total_samples'] = None
+        dataset_config['child_dir_samples_num'] = {'dataset_rndshap_Randombc_step_1to256_clean': 6,
+                                                   'dataset_rndshap_Randombc_move_body_step_1to256_clean': 12,
+                                                   'dataset_rndshap_Randombc_second_body_step_1to256_clean': 6}
         dataloader_config['batch_size'] = 2
         train_config['epochs'] = 5
         out_dir = Path('out_test')

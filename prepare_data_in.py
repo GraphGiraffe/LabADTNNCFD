@@ -1,3 +1,4 @@
+import shutil
 import pandas as pd
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -68,12 +69,19 @@ if __name__ == '__main__':
 
     root_dir = Path(root_dir)
     datasets_dir = root_dir / 'datasets'
-    dataset_name = 'dataset_rndshap_Randombc_step_1to256'
+    # dataset_name = 'dataset_rndshap_Randombc_step_1to256'
+    # dataset_name = 'dataset_rndshap_Randombc_move_body_step_1to256'
+    dataset_name = 'dataset_rndshap_Randombc_second_body_step_1to256'
 
     input_dir = datasets_dir / dataset_name
     output_dir = datasets_dir / (dataset_name+'_clean')
 
+    # show = True
+    # save = False
+    # num_samples = 8
+
     show = False
+    save = True
     num_samples = None
 
     label_fp_list = list(input_dir.glob('*_Label.csv'))
@@ -98,44 +106,62 @@ if __name__ == '__main__':
 
         if all([v.exists() for v in field_fps]):
             # if all([v.exists() for v in out_field_fps]) and all(v.exists() for v in [out_label_fp, out_sdf1_fp, out_sdf2_fp]):
-            #     continue
+            #     return 1
 
-            output_dir.mkdir(exist_ok=True)
+            if save:
+                output_dir.mkdir(exist_ok=True)
 
             for field_fp, out_field_fp in zip(field_fps, out_field_fps):
-                field = read_and_clean(field_fp)
-                field.astype(np.float32)[::-1].to_csv(out_field_fp, header=False,
-                                                      index=False, compression='gzip')
-                if show:
-                    show_m(field.to_numpy())
+                try:
+                    field = read_and_clean(field_fp)
+                    if save:
+                        field.astype(np.float32)[::-1].to_csv(out_field_fp, header=False,
+                                                              index=False, compression='gzip')
+                    if show:
+                        show_m(field.to_numpy())
+                except Exception as e:
+                    print(str(e))
+                    return 2
+            try:
+                label = pd.read_csv(label_fp, low_memory=False,
+                                    header=None, dtype=np.int8).to_numpy()
+            except Exception as e:
+                print(str(e))
+                return 3
 
-            label = pd.read_csv(label_fp, low_memory=False,
-                                header=None, dtype=np.int8).to_numpy()
             label[:WALL_WIDTH, :] = WALL_VALUE
             label[-WALL_WIDTH:, :] = WALL_VALUE
             label[:, :INLET_WIDTH] = INLET_VALUE
             label[:, -OUTLET_WIDTH:] = OUTLET_VALUE
             # label[label == 1] = OBJECT_VALUE
-            pd.DataFrame(label.astype(np.uint8)[::-1]).to_csv(
-                out_label_fp, header=False, index=False, compression='gzip')
+            if save:
+                pd.DataFrame(label.astype(np.uint8)[::-1]).to_csv(
+                    out_label_fp, header=False, index=False, compression='gzip')
             if show:
                 show_m(label)
 
-            bcs = pd.read_csv(bcs_fp, low_memory=False,
-                              header=None, index_col=None).to_numpy()
-            pd.DataFrame(bcs.astype(np.float32)).to_csv(
-                out_bcs_fp, header=False, index=False, compression='gzip')
+            try:
+                bcs = pd.read_csv(bcs_fp, low_memory=False,
+                                  header=None, index_col=None).to_numpy()
+            except Exception as e:
+                print(str(e))
+                return 3
+            if save:
+                pd.DataFrame(bcs.astype(np.float32)).to_csv(
+                    out_bcs_fp, header=False, index=False, compression='gzip')
 
             sdf1 = calculate_sdf(label, step_size=1/256, body_value=WALL_VALUE)
-            pd.DataFrame(sdf1.astype(np.float32)[::-1]).to_csv(
-                out_sdf1_fp,  header=False, index=False, compression='gzip')
+            if save:
+                pd.DataFrame(sdf1.astype(np.float32)[::-1]).to_csv(
+                    out_sdf1_fp,  header=False, index=False, compression='gzip')
             if show:
                 show_m(sdf1)
 
             sdf2 = calculate_sdf(label, step_size=1/256,
                                  body_value=OBJECT_VALUE)
-            pd.DataFrame(sdf2.astype(np.float32)[::-1]).to_csv(
-                out_sdf2_fp,  header=False, index=False, compression='gzip')
+            if save:
+                pd.DataFrame(sdf2.astype(np.float32)[::-1]).to_csv(
+                    out_sdf2_fp,  header=False, index=False, compression='gzip')
             if show:
                 show_m(sdf2)
 
@@ -146,6 +172,22 @@ if __name__ == '__main__':
     #     res = list(tqdm(pool.imap(process, label_fp_list), total=len(label_fp_list), desc="Processing files"))
 
     # process(label_fp_list[0])
-    process_map(process, label_fp_list, max_workers=8, chunksize=1)
+    results = process_map(process, label_fp_list, max_workers=8, chunksize=1)
+    for idx, res in enumerate(results):
+        if res != 0:
+            label_fp = label_fp_list[idx]
+            split = label_fp.name.split('_')
+            idx, obj_type = split[0], split[1]
 
+            field_fps = list()
+            out_field_fps = list()
+            for field_type in ['UVel', 'VVel', 'Pres', 'Temp']:
+                field_fps.append(input_dir / f'{idx}_{obj_type}_{field_type}.csv')
+                out_field_fps.append(
+                    output_dir / f'{idx}_{obj_type}_{field_type}.csv.gz')
+            bcs_fp = input_dir / f'{idx}_{obj_type}_BCs.csv'
+
+            print(res, out_field_fps + [bcs_fp])
+            # for fp in out_field_fps + [bcs_fp]:
+            #     shutil.rm(fp)
     print("DONE!")
