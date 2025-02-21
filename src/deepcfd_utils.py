@@ -1,4 +1,5 @@
 import time
+import random
 import datetime
 from pathlib import Path
 import json
@@ -57,6 +58,8 @@ def prepare_datasets(params, model_modes=[], skip_train=False, skip_val=False, s
         sample_fps_list.extend(child_samples[:child_samples_num])
 
     samples_num = len(sample_fps_list)
+    random.Random(42).shuffle(sample_fps_list)
+
     if params.total_samples is not None:
         samples_num = min(params.total_samples, samples_num)
     train_idx_start = 0
