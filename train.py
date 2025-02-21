@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=16,
+        batch_size=8,
         num_workers=1
     )
 
@@ -106,7 +106,7 @@ if __name__ == '__main__':
         dataset_config['child_dir_samples_num'] = {'dataset_rndshap_Randombc_step_1to256_clean': 6,
                                                    'dataset_rndshap_Randombc_move_body_step_1to256_clean': 12,
                                                    'dataset_rndshap_Randombc_second_body_step_1to256_clean': 6}
-        dataloader_config['batch_size'] = 2
+        dataloader_config['batch_size'] = 1
         train_config['epochs'] = 5
         out_dir = Path('out_test')
 

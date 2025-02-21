@@ -5,7 +5,7 @@ import pandas as pd
 from torch.utils.data import Dataset as BaseDataset
 
 
-MAX_Y = 1280
+MAX_Y = None
 MAX_WORKERS = 8
 
 def read_csv_to_numpy(fp):
