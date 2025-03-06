@@ -69,16 +69,20 @@ def prepare_datasets(params, model_modes=[], skip_train=False, skip_val=False, s
     test_idx_start = val_idx_stop
     test_idx_stop = samples_num
 
-    def train_dataset_fn(norm_data): return dataset_cls(
-        sample_fps_list[train_idx_start:train_idx_stop], norm_data=norm_data)
+    max_y = vars(params).get('max_y', None)
 
-    def val_dataset_fn(norm_data): return dataset_cls(
-        # transfer normalization data
-        sample_fps_list[val_idx_start:val_idx_stop], norm_data=norm_data)
+    def train_dataset_fn(norm_data):
+        return dataset_cls(sample_fps_list[train_idx_start:train_idx_stop], norm_data=norm_data, max_y=max_y)
 
-    def test_dataset_fn(norm_data): return dataset_cls(
+    def val_dataset_fn(norm_data):
         # transfer normalization data
-        sample_fps_list[test_idx_start:test_idx_stop], norm_data=norm_data)
+        return dataset_cls(sample_fps_list[val_idx_start:val_idx_stop], norm_data=norm_data, max_y=max_y)
+
+    def test_dataset_fn(norm_data, sample_num=None):
+        if sample_num is not None:
+            test_idx_stop = test_idx_start + sample_num
+        # transfer normalization data
+        return dataset_cls(sample_fps_list[test_idx_start:test_idx_stop], norm_data=norm_data, max_y=max_y)
 
     return train_dataset_fn, val_dataset_fn, test_dataset_fn
 
@@ -86,7 +90,7 @@ def prepare_datasets(params, model_modes=[], skip_train=False, skip_val=False, s
 def dump_norm_data(norm_data, fp):
     key_order = ['in_max', 'in_min', 'in_mean',
                  'out_max', 'out_min', 'out_mean']
-    
+
     norm_data_dict = dict()
     for idx, k in enumerate(key_order):
         norm_data_dict[k] = norm_data[idx].tolist()
@@ -101,3 +105,17 @@ def load_norm_data(fp):
                  'out_max', 'out_min', 'out_mean']
     norm_data = [np.array(norm_data_dict[k], dtype=np.float32) for k in key_order]
     return norm_data
+
+
+def normalize_sample(t, norm_min, norm_max):
+    norm_t = np.zeros_like(t)
+    for idx in range(norm_t.shape[1]):
+        norm_t[:, idx, :, :] = (t[:, idx, :, :] - norm_min[idx]) / (norm_max[idx] - norm_min[idx])
+    return norm_t
+
+
+def denormalize_sample(norm_t, norm_min, norm_max):
+    denorm_t = np.zeros_like(norm_t)
+    for idx in range(denorm_t.shape[1]):
+        denorm_t[:, idx, :, :] = norm_t[:, idx, :, :] * (norm_max[idx] - norm_min[idx]) + norm_min[idx]
+    return denorm_t

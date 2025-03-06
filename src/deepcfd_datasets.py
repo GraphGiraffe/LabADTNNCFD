@@ -4,9 +4,8 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset as BaseDataset
 
-
-MAX_Y = None
 MAX_WORKERS = 8
+
 
 def read_csv_to_numpy(fp):
     df = pd.read_csv(fp, low_memory=False, header=None, dtype=np.float32)
@@ -15,21 +14,24 @@ def read_csv_to_numpy(fp):
 
 
 def process(args):
-    i_fp, ib_fp, o_fp = args
-    in_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp]).astype(np.float32)
+    (i_fp, ib_fp, o_fp), max_y = args
+    in_np = np.stack([read_csv_to_numpy(fp)[..., :max_y] for fp in i_fp]).astype(np.float32)
     in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp]).astype(np.float32)[0]
-    out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp]).astype(np.float32)
-    
+    out_np = np.stack([read_csv_to_numpy(fp)[..., :max_y] for fp in o_fp]).astype(np.float32)
+
     return in_np, in_BCs_np, out_np
-        
+
+
 class DatasetCFD(BaseDataset):
     def __init__(
             self,
             samples_fps,
-            norm_data=None
+            norm_data=None,
+            max_y=None
     ):
         self.samples_fps = samples_fps  # [[in_fps, in_bcs_fps, out_fps], ...]
         self.norm_data = norm_data
+        self.max_y = max_y
 
         self.in_list, self.in_bcs_list, self.out_list = None, None, None
         self._process_data()
@@ -45,26 +47,12 @@ class DatasetCFD(BaseDataset):
         self.in_list = list()
         self.in_bcs_list = list()
         self.out_list = list()
-        
-        res = process_map(process, self.samples_fps, max_workers=MAX_WORKERS, chunksize=1)
+
+        res = process_map(process, zip(self.samples_fps, [self.max_y] * len(self.samples_fps)), max_workers=MAX_WORKERS, chunksize=1)
         self.in_list = np.stack([r[0] for r in res]).astype(np.float32)
         self.in_bcs_list = np.stack([r[1] for r in res]).astype(np.float32)
         self.out_list = np.stack([r[2] for r in res]).astype(np.float32)
         del res
-
-        # for i_fp, ib_fp, o_fp in tqdm(self.samples_fps):
-
-        #     in_np = np.stack([rea d_csv_to_numpy(fp)[..., :MAX_Y] for fp in i_fp])
-        #     in_BCs_np = np.stack([read_csv_to_numpy(fp)[..., 0] for fp in ib_fp])[0]
-        #     out_np = np.stack([read_csv_to_numpy(fp)[..., :MAX_Y] for fp in o_fp])
-
-        #     self.in_list.append(in_np)
-        #     self.in_bcs_list.append(in_BCs_np)
-        #     self.out_list.append(out_np)
-
-        # self.in_list = np.stack(self.in_list)
-        # self.in_bcs_list = np.stack(self.in_bcs_list)
-        # self.out_list = np.stack(self.out_list)
 
     def _calc_norm(self):
         in_max = self.in_list.max(axis=(0, 2, 3))
@@ -78,11 +66,9 @@ class DatasetCFD(BaseDataset):
 
     def _normalize(self):
         for idx in range(self.in_list.shape[1]):
-            self.in_list[:, idx, :, :] = (
-                self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx])
+            self.in_list[:, idx, :, :] = (self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx])
         for idx in range(self.out_list.shape[1]):
-            self.out_list[:, idx, :, :] = (
-                self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx])
+            self.out_list[:, idx, :, :] = (self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx])
 
         self.in_mean_norm = self.in_list.mean(axis=(0, 2, 3))
         self.out_mean_norm = self.out_list.mean(axis=(0, 2, 3))

@@ -1,24 +1,17 @@
-import shutil
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
-from multiprocessing import Pool
-
-import matplotlib.pyplot as plt
-from matplotlib import cm
-
-from pathlib import Path
 from PIL import Image
 
 import ast
-import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
 def show_m(m):
-    Image.fromarray(((m - m.min())/(m.max() - m.min())
-                    * 255).astype(np.uint8)).show()
+    Image.fromarray(((m - m.min())/(m.max() - m.min()) * 255)[..., :None].astype(np.uint8)).show()
 
 
 def read_and_clean(fp):
@@ -57,137 +50,159 @@ def calculate_sdf(matrix, step_size=1, body_value=1):
 if __name__ == '__main__':
     root_dir = '.'
 
-    WALL_WIDTH = 10
-    INLET_WIDTH = 10
-    OUTLET_WIDTH = 10
-
     FLAW_VALUE = 0
     OBJECT_VALUE = 1
     WALL_VALUE = 2
     INLET_VALUE = 3
     OUTLET_VALUE = 4
 
+    debug_run = False
+
     root_dir = Path(root_dir)
     datasets_dir = root_dir / 'datasets'
-    # dataset_name = 'dataset_rndshap_Randombc_step_1to256'
-    # dataset_name = 'dataset_rndshap_Randombc_move_body_step_1to256'
-    dataset_name = 'dataset_rndshap_Randombc_second_body_step_1to256'
 
-    input_dir = datasets_dir / dataset_name
-    output_dir = datasets_dir / (dataset_name+'_clean')
+    step_wall_list = [
+        # [256, 10],
+        [128, 5],
+        [64, 3],
+    ]
+    dataset_name_template_list = [
+        'dataset_rndshap_Randombc_step_1to{stepSize}',
+        'dataset_rndshap_Randombc_move_body_step_1to{stepSize}',
+        'dataset_rndshap_Randombc_second_body_step_1to{stepSize}'
+    ]
 
-    # show = True
-    # save = False
-    # num_samples = 8
+    params_list = list()
+    for stepSize, WALL_WIDTH in step_wall_list:
+        for dataset_name_template in dataset_name_template_list:
+            params_list.append([dataset_name_template.format(stepSize=stepSize), stepSize, WALL_WIDTH])
 
-    show = False
-    save = True
-    num_samples = None
+    suffix = '.csv'
+    # suffix = '.csv.gz'
 
-    label_fp_list = list(input_dir.glob('*_Label.csv'))
-    label_fp_list.sort()
-    label_fp_list = label_fp_list[:num_samples]
+    INLET_WIDTH = WALL_WIDTH
+    OUTLET_WIDTH = WALL_WIDTH
 
-    def process(label_fp):
-        split = label_fp.name.split('_')
-        idx, obj_type = split[0], split[1]
+    if debug_run:
+        show = True
+        save = False
+        num_samples = 2
+    else:
+        show = False
+        save = True
+        num_samples = None
 
-        field_fps = list()
-        out_field_fps = list()
-        for field_type in ['UVel', 'VVel', 'Pres', 'Temp']:
-            field_fps.append(input_dir / f'{idx}_{obj_type}_{field_type}.csv')
-            out_field_fps.append(
-                output_dir / f'{idx}_{obj_type}_{field_type}.csv.gz')
-        bcs_fp = input_dir / f'{idx}_{obj_type}_BCs.csv'
-        out_label_fp = output_dir / f'{idx}_{obj_type}_Label.csv.gz'
-        out_bcs_fp = output_dir / f'{idx}_{obj_type}_BCs.csv.gz'
-        out_sdf1_fp = output_dir / f'{idx}_{obj_type}_SDF1.csv.gz'
-        out_sdf2_fp = output_dir / f'{idx}_{obj_type}_SDF2.csv.gz'
+    for dataset_name, stepSize, WALL_WIDTH in params_list:
+        print(dataset_name)
+        input_dir = datasets_dir / dataset_name
+        output_dir = datasets_dir / (dataset_name+'_clean')
 
-        if all([v.exists() for v in field_fps]):
-            # if all([v.exists() for v in out_field_fps]) and all(v.exists() for v in [out_label_fp, out_sdf1_fp, out_sdf2_fp]):
-            #     return 1
+        label_fp_list = list(input_dir.glob(f'*_Label{suffix}'))
+        label_fp_list.sort()
+        label_fp_list = label_fp_list[:num_samples]
 
-            if save:
-                output_dir.mkdir(exist_ok=True)
-
-            for field_fp, out_field_fp in zip(field_fps, out_field_fps):
-                try:
-                    field = read_and_clean(field_fp)
-                    if save:
-                        field.astype(np.float32)[::-1].to_csv(out_field_fp, header=False,
-                                                              index=False, compression='gzip')
-                    if show:
-                        show_m(field.to_numpy())
-                except Exception as e:
-                    print(str(e))
-                    return 2
-            try:
-                label = pd.read_csv(label_fp, low_memory=False,
-                                    header=None, dtype=np.int8).to_numpy()
-            except Exception as e:
-                print(str(e))
-                return 3
-
-            label[:WALL_WIDTH, :] = WALL_VALUE
-            label[-WALL_WIDTH:, :] = WALL_VALUE
-            label[:, :INLET_WIDTH] = INLET_VALUE
-            label[:, -OUTLET_WIDTH:] = OUTLET_VALUE
-            # label[label == 1] = OBJECT_VALUE
-            if save:
-                pd.DataFrame(label.astype(np.uint8)[::-1]).to_csv(
-                    out_label_fp, header=False, index=False, compression='gzip')
-            if show:
-                show_m(label)
-
-            try:
-                bcs = pd.read_csv(bcs_fp, low_memory=False,
-                                  header=None, index_col=None).to_numpy()
-            except Exception as e:
-                print(str(e))
-                return 3
-            if save:
-                pd.DataFrame(bcs.astype(np.float32)).to_csv(
-                    out_bcs_fp, header=False, index=False, compression='gzip')
-
-            sdf1 = calculate_sdf(label, step_size=1/256, body_value=WALL_VALUE)
-            if save:
-                pd.DataFrame(sdf1.astype(np.float32)[::-1]).to_csv(
-                    out_sdf1_fp,  header=False, index=False, compression='gzip')
-            if show:
-                show_m(sdf1)
-
-            sdf2 = calculate_sdf(label, step_size=1/256,
-                                 body_value=OBJECT_VALUE)
-            if save:
-                pd.DataFrame(sdf2.astype(np.float32)[::-1]).to_csv(
-                    out_sdf2_fp,  header=False, index=False, compression='gzip')
-            if show:
-                show_m(sdf2)
-
-            return 0
-
-    # with Pool(8) as pool:
-    #     pool.map(process, label_fp_list[:num_samples])
-    #     res = list(tqdm(pool.imap(process, label_fp_list), total=len(label_fp_list), desc="Processing files"))
-
-    # process(label_fp_list[0])
-    results = process_map(process, label_fp_list, max_workers=8, chunksize=1)
-    for idx, res in enumerate(results):
-        if res != 0:
-            label_fp = label_fp_list[idx]
+        def process(label_fp):
             split = label_fp.name.split('_')
             idx, obj_type = split[0], split[1]
 
             field_fps = list()
             out_field_fps = list()
             for field_type in ['UVel', 'VVel', 'Pres', 'Temp']:
-                field_fps.append(input_dir / f'{idx}_{obj_type}_{field_type}.csv')
+                field_fps.append(input_dir / f'{idx}_{obj_type}_{field_type}{suffix}')
                 out_field_fps.append(
                     output_dir / f'{idx}_{obj_type}_{field_type}.csv.gz')
-            bcs_fp = input_dir / f'{idx}_{obj_type}_BCs.csv'
+            bcs_fp = input_dir / f'{idx}_{obj_type}_BCs{suffix}'
+            out_label_fp = output_dir / f'{idx}_{obj_type}_Label.csv.gz'
+            out_bcs_fp = output_dir / f'{idx}_{obj_type}_BCs.csv.gz'
+            out_sdf1_fp = output_dir / f'{idx}_{obj_type}_SDF1.csv.gz'
+            out_sdf2_fp = output_dir / f'{idx}_{obj_type}_SDF2.csv.gz'
 
-            print(res, out_field_fps + [bcs_fp])
-            # for fp in out_field_fps + [bcs_fp]:
-            #     shutil.rm(fp)
+            if all([v.exists() for v in field_fps]):
+                if all([v.exists() for v in out_field_fps]) and all(v.exists() for v in [out_label_fp, out_sdf1_fp, out_sdf2_fp]):
+                    return 1
+
+                if save:
+                    output_dir.mkdir(exist_ok=True)
+
+                for field_fp, out_field_fp in zip(field_fps, out_field_fps):
+                    try:
+                        field = read_and_clean(field_fp)
+                        if save:
+                            field.astype(np.float32)[::-1].to_csv(out_field_fp, header=False,
+                                                                  index=False, compression='gzip')
+                        if show:
+                            show_m(field.to_numpy())
+                    except Exception as e:
+                        print(str(e))
+                        return 2
+                try:
+                    label = pd.read_csv(label_fp, low_memory=False,
+                                        header=None, dtype=np.int8).to_numpy()
+                except Exception as e:
+                    print(str(e))
+                    return 3
+
+                label[:WALL_WIDTH, :] = WALL_VALUE
+                label[-WALL_WIDTH:, :] = WALL_VALUE
+                label[:, :INLET_WIDTH] = INLET_VALUE
+                label[:, -OUTLET_WIDTH:] = OUTLET_VALUE
+                # label[label == 1] = OBJECT_VALUE
+                if save:
+                    pd.DataFrame(label.astype(np.uint8)[::-1]).to_csv(
+                        out_label_fp, header=False, index=False, compression='gzip')
+                if show:
+                    show_m(label)
+
+                try:
+                    bcs = pd.read_csv(bcs_fp, low_memory=False,
+                                      header=None, index_col=None).to_numpy()
+                except Exception as e:
+                    print(str(e))
+                    return 3
+                if save:
+                    pd.DataFrame(bcs.astype(np.float32)).to_csv(
+                        out_bcs_fp, header=False, index=False, compression='gzip')
+
+                sdf1 = calculate_sdf(label, step_size=1/256, body_value=WALL_VALUE)
+                if save:
+                    pd.DataFrame(sdf1.astype(np.float32)[::-1]).to_csv(
+                        out_sdf1_fp,  header=False, index=False, compression='gzip')
+                if show:
+                    show_m(sdf1)
+
+                sdf2 = calculate_sdf(label, step_size=1/256,
+                                     body_value=OBJECT_VALUE)
+                if save:
+                    pd.DataFrame(sdf2.astype(np.float32)[::-1]).to_csv(
+                        out_sdf2_fp,  header=False, index=False, compression='gzip')
+                if show:
+                    show_m(sdf2)
+
+                return 0
+
+        # with Pool(8) as pool:
+        #     pool.map(process, label_fp_list[:num_samples])
+        #     res = list(tqdm(pool.imap(process, label_fp_list), total=len(label_fp_list), desc="Processing files"))
+
+        # process(label_fp_list[0])
+
+        results = process_map(process, label_fp_list, max_workers=8, chunksize=1)
+
+        # for idx, res in enumerate(results):
+        #     if res != 0:
+        #         label_fp = label_fp_list[idx]
+        #         split = label_fp.name.split('_')
+        #         idx, obj_type = split[0], split[1]
+
+        #         field_fps = list()
+        #         out_field_fps = list()
+        #         for field_type in ['UVel', 'VVel', 'Pres', 'Temp']:
+        #             field_fps.append(input_dir / f'{idx}_{obj_type}_{field_type}{suffix}')
+        #             out_field_fps.append(
+        #                 output_dir / f'{idx}_{obj_type}_{field_type}.csv.gz')
+        #         bcs_fp = input_dir / f'{idx}_{obj_type}_BCs{suffix}'
+
+        #         print(res, out_field_fps + [bcs_fp])
+        #         # for fp in out_field_fps + [bcs_fp]:
+        #         #     shutil.rm(fp)
     print("DONE!")

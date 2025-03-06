@@ -26,7 +26,9 @@ from matplotlib.gridspec import GridSpec
 from src.deepcfd_utils import (
     prepare_datasets,
     dump_norm_data,
-    load_norm_data
+    load_norm_data,
+    normalize_sample,
+    denormalize_sample
 )
 torch.manual_seed(0)
 
@@ -267,7 +269,7 @@ def create_result_image(flow, pred_flow):
     # Настройка фигуры и GridSpec
     fontsize = 30
     fontsize_cb = 20
-    figsize = (40, 25)
+    figsize = (60, 25)
     nrows = flow.shape[0]
     ncols = 5
     width_ratios = [1, 1, 0.05, 1, 0.05]  # gt, pred, cax, error, cax_err
@@ -283,7 +285,7 @@ def create_result_image(flow, pred_flow):
                     figure=fig,
                     width_ratios=width_ratios,
                     height_ratios=height_ratios,
-                    hspace=0.1,
+                    hspace=0.15,
                     wspace=0.15)
 
     for row_idx in range(nrows):
@@ -316,12 +318,14 @@ def create_result_image(flow, pred_flow):
             ax.set_xticks([])
             ax.set_yticks([])
 
+        format_cbar_ticks = lambda x, _: f"{x:0.3f}"
+
         # Добавление цветбара Flow
-        plt.colorbar(im, cax=cax)
+        plt.colorbar(im, cax=cax, format=format_cbar_ticks)
         cax.tick_params(labelsize=fontsize_cb)
 
         # Добавление цветбара Error
-        plt.colorbar(im_err, cax=cax_err)
+        plt.colorbar(im_err, cax=cax_err, format=format_cbar_ticks)
         cax_err.tick_params(labelsize=fontsize_cb)
 
         # Подписи слева (параметры)
@@ -339,7 +343,8 @@ def test_exp(exp_dir_path, out_dir_path,
              total_samples=None,
              datasets_dir=None,
              batch_size=None,
-             num_samples_to_draw=None):
+             num_samples_to_draw=None,
+             test_sample_num=None):
     """Тестирование модели и сохранение результатов."""
     exp_dir_path = Path(exp_dir_path)
     out_dir_path = Path(out_dir_path)
@@ -369,8 +374,13 @@ def test_exp(exp_dir_path, out_dir_path,
     
     # train_loader = DataLoader(train_dataset_fn(norm_data), shuffle=True, **vars(p.dataloader))
     # val_loader = DataLoader(val_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
-    test_loader = DataLoader(test_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
+    test_loader = DataLoader(test_dataset_fn(norm_data, sample_num=test_sample_num), shuffle=False, **vars(p.dataloader))
     channels_weights = torch.FloatTensor(test_loader.dataset.out_mean_norm)
+
+    in_min = test_loader.dataset.in_min
+    in_max = test_loader.dataset.in_max
+    out_min = test_loader.dataset.out_min
+    out_max = test_loader.dataset.out_max
 
     if 'added_fc' in p.model.modes:
         p.model.add_fc_blocks = []
@@ -436,17 +446,31 @@ def test_exp(exp_dir_path, out_dir_path,
             metrics_dict[name].append(fn(y, pred))
 
         x = x.detach().cpu().numpy()
-        x_fc = x_fc.detach().cpu().numpy()
+        # x_fc = x_fc.detach().cpu().numpy()
         y = y.detach().cpu().numpy()
         pred = pred.detach().cpu().numpy()
-        
-        
-        for sample_idx in range(x.shape[0]):
-            create_result_image(y[sample_idx, ...], pred[sample_idx, ...])
 
-            out_image_fp = out_images_dir / f'{sample_counter:06d}.png'
-            plt.savefig(out_image_fp, bbox_inches='tight', pad_inches=1)
-            plt.close()
+        # denormalization
+        # denorm_x = denormalize_sample(x, in_min, in_max)
+        # denorm_y = denormalize_sample(y, out_min, out_max)
+        # denorm_pred = denormalize_sample(pred, out_min, out_max)
+
+        for sample_idx in range(x.shape[0]):
+            sample_y = y[sample_idx, ...]
+            sample_pred = pred[sample_idx, ...]
+
+            # denormalization
+            # sample_y = denorm_y[sample_idx, ...]
+            # sample_pred = denorm_pred[sample_idx, ...]
+            # sample_out_min, sample_out_max = sample_y.min(axis=(1, 2)), sample_y.max(axis=(1, 2))
+            # sample_y = normalize_sample(sample_y[np.newaxis, ...], sample_out_min, sample_out_max)[0]
+            # sample_pred = normalize_sample(sample_pred[np.newaxis, ...], sample_out_min, sample_out_max)[0]
+        
+            if num_samples_to_draw is not None and sample_counter < num_samples_to_draw:
+                create_result_image(sample_y, sample_pred)
+                out_image_fp = out_images_dir / f'{sample_counter:06d}.png'
+                plt.savefig(out_image_fp, bbox_inches='tight', pad_inches=1)
+                plt.close()
             sample_counter += 1
 
     s = test_loader.dataset.out_list.shape

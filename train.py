@@ -13,7 +13,9 @@ run_clear_ml = True
 
 if __name__ == '__main__':
     debug_run = False
-
+    # stepSize, max_y = 1256, 2500
+    stepSize, max_y = 128, 1250
+    
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
         torch.hub.set_dir(TORCH_HUB_DIR)
@@ -32,9 +34,10 @@ if __name__ == '__main__':
     dataset_config = dict(
         datasets_dir=root_dir / 'datasets',
         dataset_name='.',
-        child_dir_samples_num={'dataset_rndshap_Randombc_step_1to256_clean': 500,
-                             'dataset_rndshap_Randombc_move_body_step_1to256_clean': 1000,
-                             'dataset_rndshap_Randombc_second_body_step_1to256_clean': 500},
+        max_y=max_y,
+        child_dir_samples_num={f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 500,
+                             f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 1000,
+                             f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 500},
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
         total_samples=None,
         train_ratio=0.6,
@@ -56,7 +59,8 @@ if __name__ == '__main__':
         BCinX_channels=2,
         in_channels=3,
         out_channels=4,
-        filters=[16, 32, 64, 128, 256, 256, 128, 64, 32],
+        # filters=[16, 32, 64, 128, 256, 256, 128, 64, 32],
+        filters=[16, 32, 64, 128, 256, 512],
         layers=3,
         kernel_size=3,
         batch_norm=False,
@@ -103,9 +107,9 @@ if __name__ == '__main__':
     if debug_run:
         run_clear_ml = False
         dataset_config['total_samples'] = None
-        dataset_config['child_dir_samples_num'] = {'dataset_rndshap_Randombc_step_1to256_clean': 6,
-                                                   'dataset_rndshap_Randombc_move_body_step_1to256_clean': 12,
-                                                   'dataset_rndshap_Randombc_second_body_step_1to256_clean': 6}
+        dataset_config['child_dir_samples_num'] = {f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 6,
+                                                   f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 12,
+                                                   f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 6}
         dataloader_config['batch_size'] = 1
         train_config['epochs'] = 5
         out_dir = Path('out_test')
