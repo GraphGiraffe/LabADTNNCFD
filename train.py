@@ -15,7 +15,8 @@ if __name__ == '__main__':
     debug_run = False
     # stepSize, max_y = 1256, 2500
     stepSize, max_y = 128, 1250
-    
+    # stepSize, max_y = 64, 625
+
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
         torch.hub.set_dir(TORCH_HUB_DIR)
@@ -35,7 +36,7 @@ if __name__ == '__main__':
         datasets_dir=root_dir / 'datasets',
         dataset_name='.',
         max_y=max_y,
-        child_dir_samples_num={f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 500,
+        child_dir_samples_num={f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 1000,
                              f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 1000,
                              f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 500},
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
@@ -67,7 +68,7 @@ if __name__ == '__main__':
         weight_norm=False,
         fc_in_channels=6,
         fc_out_channels=8,
-        fc_filters=[16, 32, 16],
+        fc_filters=[8, 16, 32, 64, 32, 16],
         device=device,
     )
 
@@ -79,8 +80,10 @@ if __name__ == '__main__':
     )
 
     # Scheduler config
-    epochs = 1000
-    gamma = pow(1e-3, 1 / (epochs)) if epochs != 0 else 0
+    epochs = 600
+    # gamma_epochs = epochs
+    gamma_epochs = 1000
+    gamma = pow(1e-3, 1 / (gamma_epochs)) if gamma_epochs != 0 else 0
     scheduler_config = dict(
         name='StepLR',
         step_size=1,
@@ -114,7 +117,11 @@ if __name__ == '__main__':
         train_config['epochs'] = 5
         out_dir = Path('out_test')
 
-    models = ['UNetExFC', 'EnhancedUNet', 'AttentionUNet', 'MultiHeadAttentionUNet']
+    # models = ['UNetExFC', 'EnhancedUNet', 'AttentionUNet', 'MultiHeadAttentionUNet']
+    models = ['UNetExFC', 'EnhancedUNet']
+    # models = ['AttentionUNet']
+    # models = ['MultiHeadAttentionUNet']
+
     add_fc_blocks_every_N_list = [1]
     obj_types_list = [['pol'],
                       #   ['spline']
@@ -134,6 +141,6 @@ if __name__ == '__main__':
                 params['model']['name'] = model_name
                 params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
                 params['dataset']['obj_types'] = obj_types
-                exp_dir_path = out_dir / f"{params['model']['name']}" / f"{ts}"
+                exp_dir_path = out_dir / f"{params['model']['name']}" / f"{stepSize}_full_mb_sb_{ts}"
                 exp(params, run_clear_ml=run_clear_ml, exp_dir_path=exp_dir_path)
                 torch.cuda.empty_cache()
