@@ -14,9 +14,19 @@ run_clear_ml = True
 if __name__ == '__main__':
     debug_run = False
 
-    # stepSize, max_y, filters = 256, 2500, [16, 32, 64, 128, 256, 256, 128, 64, 32]
-    # stepSize, max_y, filters = 128, 1250, [16, 32, 64, 128, 256, 256, 128, 64]
-    stepSize, max_y, filters = 64, 625, [16, 32, 64, 128, 256, 256, 128]
+    # dataset_type = 'all'
+    dataset_type = 'fix'
+
+    # stepSize, max_y = 256, 2500
+    # stepSize, max_y = 128, 1250
+    stepSize, max_y = 64, 625
+
+    if dataset_type == 'all':
+        child_dir_samples_num = {f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 1000,
+                                 f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 1000,
+                                 f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 500}
+    elif dataset_type == 'fix':
+        child_dir_samples_num = {f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 1000}
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
@@ -30,16 +40,14 @@ if __name__ == '__main__':
 
     # Set config
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    out_dir = Path('out')
+    out_dir = Path('out_clean')
 
     # Dataset config
     dataset_config = dict(
         datasets_dir=root_dir / 'datasets',
         dataset_name='.',
         max_y=max_y,
-        child_dir_samples_num={f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 1000,
-                             f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 1000,
-                             f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 500},
+        child_dir_samples_num=child_dir_samples_num,
         obj_types=['pol'],  # ['pol']  # ['pol', 'spline'],
         total_samples=None,
         train_ratio=0.6,
@@ -61,7 +69,7 @@ if __name__ == '__main__':
         BCinX_channels=2,
         in_channels=3,
         out_channels=4,
-        filters=filters,
+        filters=None,
         layers=3,
         kernel_size=3,
         batch_norm=False,
@@ -110,37 +118,53 @@ if __name__ == '__main__':
     if debug_run:
         run_clear_ml = False
         dataset_config['total_samples'] = None
-        dataset_config['child_dir_samples_num'] = {f'dataset_rndshap_Randombc_step_1to{stepSize}_clean': 6,
-                                                   f'dataset_rndshap_Randombc_move_body_step_1to{stepSize}_clean': 12,
-                                                   f'dataset_rndshap_Randombc_second_body_step_1to{stepSize}_clean': 6}
+        for k, v in dataset_config['child_dir_samples_num'].items():
+            dataset_config['child_dir_samples_num'][k] = 10
         dataloader_config['batch_size'] = 1
         train_config['epochs'] = 5
         out_dir = Path('out_test')
 
-    # models = ['UNetExFC', 'EnhancedUNet', 'AttentionUNet', 'MultiHeadAttentionUNet']
-    models = ['UNetExFC', 'EnhancedUNet']
-    # models = ['AttentionUNet']
-    # models = ['MultiHeadAttentionUNet']
+    models = [
+        # 'UNetExFC',
+        'EnhancedUNet',
+        # 'AttentionUNet',
+        # 'MultiHeadAttentionUNet'
+        ]
+
+    filters_list = [
+        [16, 32, 64, 128, 256, 512],
+        [16, 32, 64, 128, 256],
+        [16, 32, 64, 128]
+    ]
 
     add_fc_blocks_every_N_list = [1]
-    obj_types_list = [['pol'],
-                      #   ['spline']
-                      ]
+
+    obj_types_list = [
+        ['pol'],
+        #   ['spline']
+    ]
+
     for model_name in models:
         for add_fc_blocks_every_N in add_fc_blocks_every_N_list:
             for obj_types in obj_types_list:
-                params = copy.deepcopy(def_params)
+                for filters in filters_list:
 
-                if model_name in ['AttentionUNet', 'MultiHeadAttentionUNet']:
-                    params['model']['dilation'] = 2
-                    params['model']['enc_layers'] = params['model']['layers']
-                    params['model']['dec_layers'] = params['model']['layers']
-                    del params['model']['layers']
+                    params = copy.deepcopy(def_params)
 
-                ts = get_str_timestamp()
-                params['model']['name'] = model_name
-                params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
-                params['dataset']['obj_types'] = obj_types
-                exp_dir_path = out_dir / f"{params['model']['name']}" / f"{stepSize}_full_mb_sb_{ts}"
-                exp(params, run_clear_ml=run_clear_ml, exp_dir_path=exp_dir_path)
-                torch.cuda.empty_cache()
+                    if model_name in ['AttentionUNet', 'MultiHeadAttentionUNet']:
+                        params['model']['dilation'] = 2
+                        params['model']['enc_layers'] = params['model']['layers']
+                        params['model']['dec_layers'] = params['model']['layers']
+                        del params['model']['layers']
+
+                    params['model']['name'] = model_name
+                    params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
+                    params['model']['filters'] = filters
+                    params['dataset']['obj_types'] = obj_types
+
+                    tag = f'{dataset_type}_{stepSize}s_{params['model']['name']}_{filters[-1]}f'
+                    ts = get_str_timestamp()
+                    exp_dir_path = out_dir / tag / f"{ts}"
+
+                    exp(params, run_clear_ml=run_clear_ml, exp_dir_path=exp_dir_path)
+                    torch.cuda.empty_cache()
