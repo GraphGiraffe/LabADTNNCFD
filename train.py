@@ -13,9 +13,10 @@ run_clear_ml = True
 
 if __name__ == '__main__':
     debug_run = False
-    # stepSize, max_y = 1256, 2500
-    stepSize, max_y = 128, 1250
-    # stepSize, max_y = 64, 625
+
+    # stepSize, max_y, filters = 256, 2500, [16, 32, 64, 128, 256, 256, 128, 64, 32]
+    # stepSize, max_y, filters = 128, 1250, [16, 32, 64, 128, 256, 256, 128, 64]
+    stepSize, max_y, filters = 64, 625, [16, 32, 64, 128, 256, 256, 128]
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
@@ -60,8 +61,7 @@ if __name__ == '__main__':
         BCinX_channels=2,
         in_channels=3,
         out_channels=4,
-        # filters=[16, 32, 64, 128, 256, 256, 128, 64, 32],
-        filters=[16, 32, 64, 128, 256, 512],
+        filters=filters,
         layers=3,
         kernel_size=3,
         batch_norm=False,
