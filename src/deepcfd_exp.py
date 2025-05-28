@@ -36,12 +36,13 @@ torch.manual_seed(0)
 
 
 class Trainer():
-    def __init__(self, p, criterion, optimizer=None, scheduler=None, metrics=[]):
+    def __init__(self, p, criterion, optimizer=None, scheduler=None, metrics=[], device='cuda'):
         self.p = p
         self.criterion = criterion
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.metrics = metrics
+        self.device = device
 
     def calc_metrics_on_epoch(self):
         pass
@@ -54,7 +55,7 @@ class Trainer():
         metrics_dict = defaultdict(list)
 
         for batch in loader:
-            x, x_fc, y = [v.to(model.device) for v in batch]
+            x, x_fc, y = [v.to(self.device) for v in batch]
 
             pred = model(x, x_fc)
             loss = self.criterion(y, pred)
@@ -154,6 +155,9 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
     for k, v in p.items():
         p[k] = SimpleNamespace(**v)
     p = SimpleNamespace(**p)
+
+    if 'modes' not in vars(p.model).keys():
+        p.model.modes = []
     pprint(p_dump)
 
     train_dataset_fn, val_dataset_fn, test_dataset_fn = prepare_datasets(p.dataset, model_modes=p.model.modes)
@@ -179,12 +183,14 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
         f'src.Models.{p.model.name}'), p.model.name)
     del p.model.name
     del p.model.modes
-    del p.model.BCinX_channels
-    del p.model.add_fc_blocks_every_N
-    p.model.device = torch.device(p.model.device)
+    if 'BCinX_channels' in vars(p.model).keys():
+        del p.model.BCinX_channels
+    if 'add_fc_blocks_every_N' in vars(p.model).keys():
+        del p.model.add_fc_blocks_every_N
+    device = torch.device('cuda')
     model = model_fn(**vars(p.model))
-    model = model.to(p.model.device)
-    params_to_device(model, p.model.device)
+    model = model.to(device)
+    # params_to_device(model, p.model.device)
     summary(model)
 
     optimizer_fn = getattr(importlib.import_module(
@@ -449,7 +455,9 @@ def test_exp(exp_dir_path, out_dir_path,
     # model = model.to(p.model.device)
     # model.eval()  # Режим инференса
 
-    params_to_device(model, p.model.device)
+    device = torch.device('cuda')
+    # params_to_device(model, device)
+    model = model.to(device)
     summary(model)
 
     criterion = gen_loss_func(channels_weights=channels_weights)
@@ -480,7 +488,7 @@ def test_exp(exp_dir_path, out_dir_path,
     out_images_dir.mkdir(exist_ok=True)
 
     for batch in tqdm(test_loader):
-        x, x_fc, y = [v.to(model.device) for v in batch]
+        x, x_fc, y = [v.to(device) for v in batch]
 
         pred = model(x, x_fc)
         loss = trainer.criterion(y, pred)

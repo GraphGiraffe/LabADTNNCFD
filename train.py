@@ -9,12 +9,12 @@ from src.deepcfd_exp import exp
 from src.deepcfd_utils import get_str_timestamp
 
 
-CASCADE = True
+CASCADE = False
 run_clear_ml = True
-debug_run = False
+debug_run = True
 
 
-def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, filters):
+def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name):
     params = copy.deepcopy(def_params)
 
     params['dataset']['obj_types'] = obj_types
@@ -33,7 +33,6 @@ def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_n
         params['model']['dec_layers'] = params['model']['layers']
         del params['model']['layers']
     params['model']['name'] = model_name
-    params['model']['filters'] = filters
 
     if debug_run:
         params['dataset']['total_samples'] = None
@@ -116,15 +115,9 @@ if __name__ == '__main__':
         encoder_name='resnet34',
         in_channels=3,
         out_channels=4,
-        filters=[256, 128, 64, 32, 16],
+        decoder_filters=[256, 128, 64, 32],
+        kernel_size=3,
         fc_in_channels=6,
-        fc_filters=[8, 16, 32, 64, 32, 16],
-        fc_out_channels=8,
-        add_fc_blocks=[True, False, True, False, True],
-        batch_norm=False
-        decoder_attention_type=None,
-        pretrained=True,
-        device=device
     )
 
     # Optimizer config
@@ -133,7 +126,7 @@ if __name__ == '__main__':
         lr=1e-3,
         weight_decay=1e-2
     )
-    
+
     # optimizer_config = dict(
     #     name='RAdam',
     #     lr=1e-4,
@@ -191,7 +184,7 @@ if __name__ == '__main__':
     model_list = [
         # 'UNetExFC',
         # 'EnhancedUNet',
-        'SmpUNetExFC',
+        'SMPCrossAttentionUNet',
         # 'AttentionUNet',
         # 'MultiHeadAttentionUNet',
     ]
@@ -212,10 +205,6 @@ if __name__ == '__main__':
     #     [8, 16, 32, 64, 128],
     # ]
 
-    filters_list = [
-        [16, 32, 64, 128, 256, 256, 256],
-    ]
-
     # layers_list = [3]
 
     if cfg1 != None:
@@ -226,9 +215,9 @@ if __name__ == '__main__':
 # endregion exp_configs
 
     exp_list = list()
-    iter_list = itertools.product(obj_types_list, dataset_type_list, stepSize_maxy_list, model_list, filters_list)
-    for (obj_types, dataset_type, (stepSize, max_y), model_name, filters) in iter_list:
-        params = prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, filters)
+    iter_list = itertools.product(obj_types_list, dataset_type_list, stepSize_maxy_list, model_list)
+    for (obj_types, dataset_type, (stepSize, max_y), model_name) in iter_list:
+        params = prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name)
         tag = f'{dataset_type}_{stepSize}s_{model_name}'
 
         exp_list.append((params, tag))
