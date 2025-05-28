@@ -7,6 +7,8 @@ from collections import defaultdict
 
 import torch
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import LinearLR, SequentialLR
+
 from torch.utils.tensorboard import SummaryWriter
 from torchinfo import summary
 from tqdm import tqdm
@@ -192,7 +194,44 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
         scheduler_fn = getattr(importlib.import_module(
             'torch.optim.lr_scheduler'), p.scheduler.name)
         del p.scheduler.name
-        scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
+        if 'warmup_epochs' in vars(p.scheduler).keys():
+            warmup_epochs = p.scheduler.warmup_epochs
+            del p.scheduler.warmup_epochs
+            main_scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
+            
+            # Сохраняем базовые скорости
+            base_lr = [group["lr"] for group in optimizer.param_groups][0]
+            # # Делаем «глубокую» копию и на ней прогоняем warmup_epochs раз
+            # tmp_sched = copy.deepcopy(main_scheduler)
+            # for _ in range(warmup_epochs):
+            #     tmp_sched.step()
+            # # Получаем обученные LR после симуляции
+            # end_lr = tmp_sched.get_last_lr()[0]
+            end_lr = base_lr
+
+            warmup_start_lr = 1e-6
+            start_factor = warmup_start_lr / base_lr
+            end_factor   = end_lr  / base_lr
+
+            warmup_scheduler = LinearLR(
+                optimizer,
+                start_factor=start_factor,
+                end_factor=end_factor,
+                total_iters=warmup_epochs
+            )
+            
+            # scheduler_kwargs = vars(p.scheduler)
+            # scheduler_kwargs
+            # main_scheduler = scheduler_fn(optimizer, **scheduler_kwargs)
+
+            scheduler = SequentialLR(
+                optimizer,
+                schedulers=[warmup_scheduler, main_scheduler],
+                milestones=[warmup_epochs]
+            )
+
+        else:
+            scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
     else:
         scheduler = None
 
@@ -282,11 +321,11 @@ def create_result_image(flow, pred_flow):
 
     fig = plt.figure(figsize=figsize)
     gs = GridSpec(nrows=nrows, ncols=ncols,
-                    figure=fig,
-                    width_ratios=width_ratios,
-                    height_ratios=height_ratios,
-                    hspace=0.15,
-                    wspace=0.15)
+                  figure=fig,
+                  width_ratios=width_ratios,
+                  height_ratios=height_ratios,
+                  hspace=0.15,
+                  wspace=0.15)
 
     for row_idx in range(nrows):
         # Данные для текущего параметра
@@ -297,7 +336,7 @@ def create_result_image(flow, pred_flow):
         # Определение общего масштаба для Flow
         combined = np.concatenate([gt_data, pred_data])
         vmin, vmax = np.min(combined), np.max(combined)
-        
+
         # Определение общего масштаба Error
         err_vmin, err_vmax = np.min(err_data), np.max(err_data)
 
@@ -318,7 +357,7 @@ def create_result_image(flow, pred_flow):
             ax.set_xticks([])
             ax.set_yticks([])
 
-        format_cbar_ticks = lambda x, _: f"{x:0.3f}"
+        def format_cbar_ticks(x, _): return f"{x:0.3f}"
 
         # Добавление цветбара Flow
         plt.colorbar(im, cax=cax, format=format_cbar_ticks)
@@ -371,7 +410,7 @@ def test_exp(exp_dir_path, out_dir_path,
     if not norm_data_fp.exists():
         norm_data_fp = Path(p.datasets_dir) / p.dataset_name / 'norm_data.json'
     norm_data = load_norm_data(norm_data_fp)
-    
+
     # train_loader = DataLoader(train_dataset_fn(norm_data), shuffle=True, **vars(p.dataloader))
     # val_loader = DataLoader(val_dataset_fn(norm_data), shuffle=False, **vars(p.dataloader))
     test_loader = DataLoader(test_dataset_fn(norm_data, sample_num=test_sample_num), shuffle=False, **vars(p.dataloader))
@@ -465,7 +504,7 @@ def test_exp(exp_dir_path, out_dir_path,
             # sample_out_min, sample_out_max = sample_y.min(axis=(1, 2)), sample_y.max(axis=(1, 2))
             # sample_y = normalize_sample(sample_y[np.newaxis, ...], sample_out_min, sample_out_max)[0]
             # sample_pred = normalize_sample(sample_pred[np.newaxis, ...], sample_out_min, sample_out_max)[0]
-        
+
             if num_samples_to_draw is not None and sample_counter < num_samples_to_draw:
                 create_result_image(sample_y, sample_pred)
                 out_image_fp = out_images_dir / f'{sample_counter:06d}.png'

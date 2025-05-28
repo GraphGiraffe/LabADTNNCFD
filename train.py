@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import copy
 import itertools
@@ -47,7 +48,15 @@ def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_n
 
 
 if __name__ == '__main__':
-    out_dir = Path('out')
+    argv = sys.argv
+    cfg1 = argv[1] if len(argv) > 1 else None
+    cfg2 = int(argv[2]) if len(argv) > 2 else None
+
+    print(argv)
+    print(cfg1)
+    print(cfg2)
+
+    out_dir = Path('out_0525_3')
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
@@ -108,20 +117,30 @@ if __name__ == '__main__':
     optimizer_config = dict(
         name='AdamW',
         lr=1e-3,
-        weight_decay=0.005
+        weight_decay=1e-3
     )
+    
+    # optimizer_config = dict(
+    #     name='RAdam',
+    #     lr=1e-4,
+    #     betas=(0.9, 0.99),
+    #     eps=1e-8,
+    #     weight_decay=1e-4
+    # )
 
     # Scheduler config
-    epochs = 600
+    epochs = 550
     # gamma_epochs = epochs
-    gamma_epochs = 1000
-    gamma = pow(1e-3, 1 / (gamma_epochs)) if gamma_epochs != 0 else 0
+    gamma_epochs = epochs
+    gamma = pow(1e-2, 1 / (gamma_epochs)) if gamma_epochs != 0 else 0
     scheduler_config = dict(
         name='StepLR',
+        warmup_epochs=50,
         step_size=1,
         gamma=gamma,
         last_epoch=-1
     )
+    epochs += scheduler_config.get('warmup_epochs', 0)
 
     # Train config
     train_config = dict(
@@ -144,15 +163,15 @@ if __name__ == '__main__':
 
     dataset_type_list = [
         'fix',
-        # 'all',
+        'all',
     ]
 
     obj_types_list = [['pol']]
 
     stepSize_maxy_list = [
         [64, 625],
-        # [128, 1250],
-        # [256, 2500],
+        [128, 1250],
+        [256, 2500],
     ]
 
     model_list = [
@@ -179,16 +198,21 @@ if __name__ == '__main__':
     # ]
 
     filters_list = [
-        [8, 16, 32, 64, 128, 256, 512],
+        [16, 32, 64, 128, 256, 256, 256],
     ]
 
     # layers_list = [3]
 
     layers_list = [
-        2,
         3,
         4,
+        5,
     ]
+
+    if cfg1 != None:
+        dataset_type_list = [cfg1]
+    if cfg2 != None:
+        stepSize_maxy_list = stepSize_maxy_list[cfg2:cfg2+1]
 
 # endregion exp_configs
 

@@ -13,6 +13,7 @@
         },
         {
             "name": "train.py",
+            "justMyCode": false,
             "type": "debugpy",
             "request": "launch",
             "program": "train.py",
