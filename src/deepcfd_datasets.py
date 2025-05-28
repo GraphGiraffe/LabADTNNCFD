@@ -66,9 +66,9 @@ class DatasetCFD(BaseDataset):
 
     def _normalize(self):
         for idx in range(self.in_list.shape[1]):
-            self.in_list[:, idx, :, :] = (self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx])
+            self.in_list[:, idx, :, :] = (self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx]) + 1e-8
         for idx in range(self.out_list.shape[1]):
-            self.out_list[:, idx, :, :] = (self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx])
+            self.out_list[:, idx, :, :] = (self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx]) + 1e-8
 
         self.in_mean_norm = self.in_list.mean(axis=(0, 2, 3))
         self.out_mean_norm = self.out_list.mean(axis=(0, 2, 3))
@@ -87,12 +87,14 @@ class DatasetCFD_BCinX(BaseDataset):
             in_fps,
             in_bcs_fps,
             out_fps,
-            norm_data=None
+            norm_data=None,
+            max_y=None
     ):
         self.in_fps = in_fps
         self.in_bcs_fps = in_bcs_fps
         self.out_fps = out_fps
         self.norm_data = norm_data
+        self.max_y = max_y
 
         self.in_list, self.in_bcs_list, self.out_list = None, None, None
         self._process_data()
@@ -110,9 +112,9 @@ class DatasetCFD_BCinX(BaseDataset):
         self.in_bcs_list = list()
         self.out_list = list()
         for i_fp, ib_fp, o_fp in tqdm(zip(self.in_fps, self.in_bcs_fps, self.out_fps)):
-            in_np = np.load(i_fp)[:, :, :MAX_Y]
+            in_np = np.load(i_fp)[:, :, :self.max_y]
             in_BCs_np = np.load(ib_fp)
-            out_np = np.load(o_fp)[:4, :, :MAX_Y]
+            out_np = np.load(o_fp)[:4, :, :self.max_y]
 
             self.in_list.append(in_np)
             self.in_bcs_list.append(in_BCs_np[..., 0])
@@ -135,10 +137,10 @@ class DatasetCFD_BCinX(BaseDataset):
     def _normalize(self):
         for idx in range(self.in_list.shape[1]):
             self.in_list[:, idx, :, :] = (
-                self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx])
+                self.in_list[:, idx, :, :] - self.in_min[idx]) / (self.in_max[idx] - self.in_min[idx]) + 1e-8
         for idx in range(self.out_list.shape[1]):
             self.out_list[:, idx, :, :] = (
-                self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx])
+                self.out_list[:, idx, :, :] - self.out_min[idx]) / (self.out_max[idx] - self.out_min[idx]) + 1e-8
 
         self.in_mean_norm = self.in_list.mean(axis=(0, 2, 3))
         self.out_mean_norm = self.out_list.mean(axis=(0, 2, 3))

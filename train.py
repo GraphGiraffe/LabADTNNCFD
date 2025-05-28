@@ -14,7 +14,7 @@ run_clear_ml = True
 debug_run = False
 
 
-def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, add_fc_blocks_every_N, filters, layers):
+def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, filters):
     params = copy.deepcopy(def_params)
 
     params['dataset']['obj_types'] = obj_types
@@ -33,9 +33,7 @@ def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_n
         params['model']['dec_layers'] = params['model']['layers']
         del params['model']['layers']
     params['model']['name'] = model_name
-    params['model']['add_fc_blocks_every_N'] = add_fc_blocks_every_N
     params['model']['filters'] = filters
-    params['model']['layers'] = layers
 
     if debug_run:
         params['dataset']['total_samples'] = None
@@ -56,7 +54,7 @@ if __name__ == '__main__':
     print(cfg1)
     print(cfg2)
 
-    out_dir = Path('out_0525_3')
+    out_dir = Path('out_0525_5')
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
@@ -89,35 +87,51 @@ if __name__ == '__main__':
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=8,
+        batch_size=16,
         num_workers=1
     )
 
+    # # Model config
+    # model_config = dict(
+    #     name=None,
+    #     # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
+    #     modes=['added_fc'],
+    #     add_fc_blocks_every_N=1,
+    #     BCinX_channels=2,
+    #     in_channels=3,
+    #     out_channels=4,
+    #     filters=None,
+    #     layers=None,
+    #     kernel_size=3,
+    #     batch_norm=False,
+    #     weight_norm=False,
+    #     fc_in_channels=6,
+    #     fc_out_channels=8,
+    #     fc_filters=[8, 16, 32, 64, 32, 16],
+    #     device=device,
+    # )
+
     # Model config
     model_config = dict(
-        name=None,
-        # ['added_fc']  ['bc_in_x']  ['added_fc', 'bc_in_x']
-        modes=['added_fc'],
-        add_fc_blocks_every_N=None,
-        BCinX_channels=2,
+        encoder_name='resnet34',
         in_channels=3,
         out_channels=4,
-        filters=None,
-        layers=None,
-        kernel_size=3,
-        batch_norm=False,
-        weight_norm=False,
+        filters=[256, 128, 64, 32, 16],
         fc_in_channels=6,
-        fc_out_channels=8,
         fc_filters=[8, 16, 32, 64, 32, 16],
-        device=device,
+        fc_out_channels=8,
+        add_fc_blocks=[True, False, True, False, True],
+        batch_norm=False
+        decoder_attention_type=None,
+        pretrained=True,
+        device=device
     )
 
     # Optimizer config
     optimizer_config = dict(
         name='AdamW',
         lr=1e-3,
-        weight_decay=1e-3
+        weight_decay=1e-2
     )
     
     # optimizer_config = dict(
@@ -129,13 +143,13 @@ if __name__ == '__main__':
     # )
 
     # Scheduler config
-    epochs = 550
+    epochs = 600
     # gamma_epochs = epochs
     gamma_epochs = epochs
-    gamma = pow(1e-2, 1 / (gamma_epochs)) if gamma_epochs != 0 else 0
+    gamma = pow(1e-2, 1 / gamma_epochs) if gamma_epochs != 0 else 0
     scheduler_config = dict(
         name='StepLR',
-        warmup_epochs=50,
+        warmup_epochs=0,
         step_size=1,
         gamma=gamma,
         last_epoch=-1
@@ -176,12 +190,13 @@ if __name__ == '__main__':
 
     model_list = [
         # 'UNetExFC',
-        'EnhancedUNet',
+        # 'EnhancedUNet',
+        'SmpUNetExFC',
         # 'AttentionUNet',
         # 'MultiHeadAttentionUNet',
     ]
 
-    add_fc_blocks_every_N_list = [1]
+    # add_fc_blocks_every_N_list = [1]
 
     # filter_list = [[16, 32, 64, 128, 256, 256, 128, 64, 32]]  # best results for stepSize == 256; min height == 512
 
@@ -203,12 +218,6 @@ if __name__ == '__main__':
 
     # layers_list = [3]
 
-    layers_list = [
-        3,
-        4,
-        5,
-    ]
-
     if cfg1 != None:
         dataset_type_list = [cfg1]
     if cfg2 != None:
@@ -217,10 +226,10 @@ if __name__ == '__main__':
 # endregion exp_configs
 
     exp_list = list()
-    iter_list = itertools.product(obj_types_list, dataset_type_list, stepSize_maxy_list, model_list, add_fc_blocks_every_N_list, filters_list, layers_list)
-    for (obj_types, dataset_type, (stepSize, max_y), model_name, add_fc_blocks_every_N, filters, layers) in iter_list:
-        params = prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, add_fc_blocks_every_N, filters, layers)
-        tag = f'{dataset_type}_{stepSize}s_{model_name}_{layers}l'
+    iter_list = itertools.product(obj_types_list, dataset_type_list, stepSize_maxy_list, model_list, filters_list)
+    for (obj_types, dataset_type, (stepSize, max_y), model_name, filters) in iter_list:
+        params = prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name, filters)
+        tag = f'{dataset_type}_{stepSize}s_{model_name}'
 
         exp_list.append((params, tag))
 

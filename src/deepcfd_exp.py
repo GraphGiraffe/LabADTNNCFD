@@ -65,6 +65,7 @@ class Trainer():
             if train:
                 self.optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 self.optimizer.step()
         if train:
             if self.scheduler is not None:
@@ -159,7 +160,8 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
     train_loader = DataLoader(train_dataset_fn(None), shuffle=True, **vars(p.dataloader))
     val_loader = DataLoader(val_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
     # test_loader = DataLoader(test_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
-    channels_weights = torch.FloatTensor(train_loader.dataset.out_mean_norm)
+    # channels_weights = torch.FloatTensor(train_loader.dataset.out_mean_norm)
+    channels_weights = torch.FloatTensor([1, 1, 1, 1])
 
     dump_norm_data(train_loader.dataset.norm_data, exp_dir_path / 'norm_data.json')
 
@@ -194,7 +196,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
         scheduler_fn = getattr(importlib.import_module(
             'torch.optim.lr_scheduler'), p.scheduler.name)
         del p.scheduler.name
-        if 'warmup_epochs' in vars(p.scheduler).keys():
+        if 'warmup_epochs' in vars(p.scheduler).keys() and p.scheduler.warmup_epochs not in [None, 0]:
             warmup_epochs = p.scheduler.warmup_epochs
             del p.scheduler.warmup_epochs
             main_scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
@@ -231,6 +233,8 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
             )
 
         else:
+            if 'warmup_epochs' in vars(p.scheduler).keys():
+                del p.scheduler.warmup_epochs
             scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
     else:
         scheduler = None
