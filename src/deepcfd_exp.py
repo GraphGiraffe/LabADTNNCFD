@@ -58,6 +58,7 @@ class Trainer():
             x, x_fc, y = [v.to(self.device) for v in batch]
 
             pred = model(x, x_fc)
+            label_map = (x[:,0] * loader.dataset.in_max[0] - loader.dataset.in_min[0]) + loader.dataset.in_min[0]
             loss = self.criterion(y, pred)
             loss_list.append(loss.item())
             for name, fn in self.metrics.items():
@@ -66,7 +67,7 @@ class Trainer():
             if train:
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1e-2)
                 self.optimizer.step()
         if train:
             if self.scheduler is not None:
@@ -126,6 +127,82 @@ def gen_loss_func(channels_weights):
     return loss_func
 
 
+################################################################
+# --- improved Loss (Charbonnier + divergence) --------------- #
+################################################################
+
+def charbonnier(x, eps: float = 1e-6):
+    return torch.sqrt(x * x + eps)
+
+
+def composite_loss(pred: torch.Tensor, target: torch.Tensor, div_weight: float = 0.01):
+    """Charbonnier + divergence(u,v).
+    Мы берём центральные разности и приводим карты div к
+    наименьшему общему размеру среди H-1 и W-1, чтобы избежать
+    несовпадений (625×623 и т.д.).
+    """
+    base = charbonnier(pred - target).mean()
+
+    # divergence term (central differences)
+    u, v = pred[:, 0:1], pred[:, 1:2]
+    du_dx = u[..., 1:] - u[..., :-1]       # (B,1,H, W-1)
+    dv_dy = v[..., 1:, :] - v[..., :-1, :]  # (B,1,H-1, W)
+
+    # выравниваем пространственные размеры
+    Hm1 = min(du_dx.shape[-2], dv_dy.shape[-2])  # min(H, H-1)
+    Wm1 = min(du_dx.shape[-1], dv_dy.shape[-1])  # min(W-1, W)
+    div = du_dx[..., :Hm1, :Wm1] + dv_dy[..., :Hm1, :Wm1]  # (B,1,Hm1,Wm1)
+    return base + div_weight * torch.abs(div).mean()
+
+
+# =============================================================================
+#  Physics‑informed loss: data + divergence(u,v) + BC consistency (inlet)
+# =============================================================================
+
+INLET_VALUE = 3  # метка входа из Label
+BODY_VALUE = 1  # метка тела
+
+
+def physics_loss(pred: torch.Tensor,
+                 target: torch.Tensor,
+                 label_map: torch.Tensor,
+                 bc_vec: torch.Tensor,
+                 lambda_div: float = 1e-2,
+                 lambda_bc: float = 5e-2):
+    import torch.nn.functional as F
+    """MSE + λ₁⋅div + λ₂⋅BC для скорости (inlet) и температуры (body)."""
+    mse = F.mse_loss(pred, target)
+
+    # Divergence(u,v)
+    u, v = pred[:, 0:1], pred[:, 1:2]
+    du_dx = torch.gradient(u, dim=3)[0]
+    dv_dy = torch.gradient(v, dim=2)[0]
+    div_loss = (du_dx + dv_dy).pow(2).mean()
+
+    # BC: скорость на входе и температура тела
+    inlet_mask = (label_map == INLET_VALUE).unsqueeze(1).float()
+    body_mask = (label_map == BODY_VALUE).unsqueeze(1).float()
+    u_in = bc_vec[:, 0].view(-1, 1, 1, 1)
+    T_body = bc_vec[:, 1].view(-1, 1, 1, 1)
+
+    bc_u = (((pred[:, 0:1] - u_in) * inlet_mask) ** 2).sum() / (inlet_mask.sum() + 1e-6)
+    bc_T = (((pred[:, 3:4] - T_body) * body_mask) ** 2).sum() / (body_mask.sum() + 1e-6)
+
+    return mse + lambda_div * div_loss + lambda_bc * (bc_u + bc_T)
+
+# =============================================================================
+#  Quick integration guide
+# -----------------------------------------------------------------------------
+#  1. Replace your model import in train.py with:
+#         from src.Models.UnifiedUNet import UnifiedUNet  # adjust path
+#  2. Instantiate the model (keeping same cfg):
+#         model = UnifiedUNet(**vars(p.model))
+#  3. Replace the Trainer criterion:
+#         criterion = lambda y,p,x,x_fc: physics_loss(p, y, x, x_fc)
+#     and change Trainer.epoch to pass x & x_fc to criterion.
+# =============================================================================
+
+
 def params_to_device(model, device):
     for vv in model.fc_blocks_decoder:
         for v in vv:
@@ -165,6 +242,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
     val_loader = DataLoader(val_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
     # test_loader = DataLoader(test_dataset_fn(train_loader.dataset.norm_data), shuffle=False, **vars(p.dataloader))
     # channels_weights = torch.FloatTensor(train_loader.dataset.out_mean_norm)
+    # channels_weights = torch.FloatTensor([1, 1, 1, 5])
     channels_weights = torch.FloatTensor([1, 1, 1, 1])
 
     dump_norm_data(train_loader.dataset.norm_data, exp_dir_path / 'norm_data.json')
@@ -187,7 +265,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
         del p.model.BCinX_channels
     if 'add_fc_blocks_every_N' in vars(p.model).keys():
         del p.model.add_fc_blocks_every_N
-    device = torch.device('cuda')
+    device = torch.device('cuda'if torch.cuda.is_available() else 'cpu')
     model = model_fn(**vars(p.model))
     model = model.to(device)
     # params_to_device(model, p.model.device)
@@ -206,7 +284,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
             warmup_epochs = p.scheduler.warmup_epochs
             del p.scheduler.warmup_epochs
             main_scheduler = scheduler_fn(optimizer, **vars(p.scheduler))
-            
+
             # Сохраняем базовые скорости
             base_lr = [group["lr"] for group in optimizer.param_groups][0]
             # # Делаем «глубокую» копию и на ней прогоняем warmup_epochs раз
@@ -219,7 +297,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
 
             warmup_start_lr = 1e-6
             start_factor = warmup_start_lr / base_lr
-            end_factor   = end_lr  / base_lr
+            end_factor = end_lr / base_lr
 
             warmup_scheduler = LinearLR(
                 optimizer,
@@ -227,7 +305,7 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
                 end_factor=end_factor,
                 total_iters=warmup_epochs
             )
-            
+
             # scheduler_kwargs = vars(p.scheduler)
             # scheduler_kwargs
             # main_scheduler = scheduler_fn(optimizer, **scheduler_kwargs)
@@ -259,6 +337,8 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
     writer = SummaryWriter(log_dir=exp_dir_path)
 
     criterion = gen_loss_func(channels_weights=channels_weights)
+    # def criterion(y, p, x, x_fc): return physics_loss(p, y, x, x_fc)
+    # criterion = composite_loss
 
     metrics = dict(
         mse=lambda target, pred: MSE(target, pred),
@@ -271,7 +351,8 @@ def exp(p_in, run_clear_ml=False, exp_dir_path=None):
                       criterion,
                       optimizer=optimizer,
                       scheduler=scheduler,
-                      metrics=metrics)
+                      metrics=metrics,
+                      device=device)
 
     best_score = torch.inf
     with tqdm(total=p.train.epochs, desc="Epochs", unit="epoch") as pbar:

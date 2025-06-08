@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 import copy
 import itertools
@@ -9,12 +10,13 @@ from src.deepcfd_exp import exp
 from src.deepcfd_utils import get_str_timestamp
 
 
-CASCADE = False
+CASCADE = True
 run_clear_ml = True
-debug_run = True
+debug_run = False
 
 
 def prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name):
+    global debug_run
     params = copy.deepcopy(def_params)
 
     params['dataset']['obj_types'] = obj_types
@@ -49,15 +51,21 @@ if __name__ == '__main__':
     cfg1 = argv[1] if len(argv) > 1 else None
     cfg2 = int(argv[2]) if len(argv) > 2 else None
 
+    if cfg1 == 'test':
+        debug_run = True
+        cfg1 = 'fix'
+        cfg2 = 0
     print(argv)
     print(cfg1)
     print(cfg2)
 
-    out_dir = Path('out_0525_5')
+    out_dir = Path('out_0525_smp')
 
     if CASCADE:
         TORCH_HUB_DIR = '/storage2/pia/python/hub/'
         torch.hub.set_dir(TORCH_HUB_DIR)
+        HF_HOME = '/storage2/pia/python/hf/'
+        os.environ['HF_HOME'] = HF_HOME
         root_dir = '/storage2/pia/python/deepcfd/'
         run_clear_ml = False
     else:
@@ -86,7 +94,7 @@ if __name__ == '__main__':
 
     # Dataloader config
     dataloader_config = dict(
-        batch_size=16,
+        batch_size=8,
         num_workers=1
     )
 
@@ -110,15 +118,54 @@ if __name__ == '__main__':
     #     device=device,
     # )
 
-    # Model config
+    # model_config = dict(
+    #     in_channels=3,
+    #     out_channels=4,
+    #     fc_in_channels=6,       # размер вектора BC
+    #     layers_per_block=3,
+    #     encoder_filters=[32, 32, 64, 128, 128],   # L уровней
+    #     decoder_filters=[128, 64, 32, 32],        # Тогда декодеру нужно L-1 уровней
+
+    #     # Решаем, на каких decode-уровнях встраивать BC (от глубокого к мелкому)
+    #     add_fc_decode=[True, True, True, True],
+
+    #     # Скрытые слои для BC в бутылке и на decode-уровнях
+    #     bc_bottle_hidden=[32, 64, 128, 256],
+    #     bc_decode_hidden=[32, 64, 128],
+    #     fc_out_channels=16,
+    # )
+
+    # model_config = dict(
+    #     in_channels=3,
+    #     out_channels=4,
+    #     fc_in_channels=6,
+    #     encoder_filters=[32, 64, 128, 256],
+    #     decoder_filters=[256, 128, 64, 32],
+    #     num_transformer_layers=4,
+    #     num_heads=8,
+    #     kernel_size=3,
+    # )
+
     model_config = dict(
-        encoder_name='resnet34',
         in_channels=3,
         out_channels=4,
-        decoder_filters=[256, 128, 64, 32],
-        kernel_size=3,
         fc_in_channels=6,
+        filters=[16, 32, 64, 128, 256],
+        layers=3,
     )
+
+
+    # model_config = dict(
+    #     encoder_name='resnet50',      # та же версия энкодера, что и в SMPCrossAttentionUNet
+    #     in_channels=3,                # RGB-вход
+    #     out_channels=4,               # число предсказываемых полей CFD
+    #     fc_dim=6,                     # по умолчанию 6-мерный вектор из FC-части
+    #     attn_heads=16,                 # число «голов» в cross-attention
+    #     decoder_filters=[256, 128, 64, 32],  # число каналов на каждом уровне декодера
+    #     kernel_size=3,                # размер ядра для сверточных блоков
+    #     final_activation=None,        # если нужен какой-то выходной активейшен (например, Sigmoid)
+    #     encoder_weights='imagenet'    # или None, если обучаете с нуля
+    # )
 
     # Optimizer config
     optimizer_config = dict(
@@ -136,7 +183,9 @@ if __name__ == '__main__':
     # )
 
     # Scheduler config
-    epochs = 600
+    # epochs = 600
+    epochs = 1200
+
     # gamma_epochs = epochs
     gamma_epochs = epochs
     gamma = pow(1e-2, 1 / gamma_epochs) if gamma_epochs != 0 else 0
@@ -184,7 +233,16 @@ if __name__ == '__main__':
     model_list = [
         # 'UNetExFC',
         # 'EnhancedUNet',
-        'SMPCrossAttentionUNet',
+        # 'EnhancedUNetDynamic',
+        'EnhancedUNetSPADE',
+        # 'EnhancedUNetSPADEx',
+        # 'UnifiedUNet',
+        # 'UNetTransformerBC',
+        # 'MultiDecoderFiLMUNet',
+        # 'EnhancedUNetFiLM',
+        # 'EnhancedUNetMultiDecoderBC',
+        # 'SMPCrossAttentionUNet',
+        # 'ImprovedAttentionUNet',
         # 'AttentionUNet',
         # 'MultiHeadAttentionUNet',
     ]
@@ -218,6 +276,8 @@ if __name__ == '__main__':
     iter_list = itertools.product(obj_types_list, dataset_type_list, stepSize_maxy_list, model_list)
     for (obj_types, dataset_type, (stepSize, max_y), model_name) in iter_list:
         params = prepare_pramas(def_params, obj_types, dataset_type, stepSize, max_y, model_name)
+        # if stepSize == 256:
+        #     params['dataloader']['batch_size'] = 6
         tag = f'{dataset_type}_{stepSize}s_{model_name}'
 
         exp_list.append((params, tag))

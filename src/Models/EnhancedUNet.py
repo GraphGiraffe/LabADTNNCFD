@@ -2,12 +2,26 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
-from src.Models.AutoEncoder import create_layer
 from typing import List, Optional, Type
 
 ###############################################
 # Функции для создания блоков кодировщика и декодера
 ###############################################
+
+
+def create_layer(in_channels, out_channels, kernel_size, wn=True, bn=True,
+                 activation=nn.ReLU, convolution=nn.Conv2d):
+    assert kernel_size % 2 == 1
+    layer = []
+    conv = convolution(in_channels, out_channels, kernel_size, padding=kernel_size // 2)
+    if wn:
+        conv = weight_norm(conv)
+    layer.append(conv)
+    if activation is not None:
+        layer.append(activation())
+    if bn:
+        layer.append(nn.BatchNorm2d(out_channels))
+    return nn.Sequential(*layer)
 
 
 def create_encoder_block(in_channels: int, out_channels: int, kernel_size: int,
